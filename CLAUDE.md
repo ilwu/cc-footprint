@@ -16,7 +16,7 @@ monitor/app.js (Node.js)              statusline/statusline.sh (Bash)
 ├─ MCP$ share + context composition: tail ~/.claude/projects/**/<sid>.jsonl
 │   (MCP$ includes subagents/; composition reads the main thread only,
 │    algorithm in monitor/context.js)
-└─ Config: ~/.cc-footprint/           └─ memory cache (fallback while the monitor is down)
+└─ Config: ~/.cc-footprint/           └─ Monitor down: only what Claude Code itself reports
 ```
 
 ## Critical constraints
@@ -31,6 +31,7 @@ monitor/app.js (Node.js)              statusline/statusline.sh (Bash)
 - **`os.freemem()` is wrong on macOS** (it counts only never-touched pages) — system memory comes from `vm_stat`.
 - **The installers share `scripts/`** — `statusline-setting.js` edits settings.json and `remove-global-rule.js` removes the marked block from CLAUDE.md; both `install.ps1` and `install.sh` call them. Do not write a second copy.
 - **`wmic` is gone** (Windows 11 24H2+) — process data comes from the Get-CimInstance script embedded in `collectors/win32.js`; system memory from Node's `os` module.
+- **A monitor that is down must not stall the statusline** — under MSYS a refused connection takes 2 s to come back, so after a failure statusline.sh asks again only every 30 s (`/tmp/claude-sl-monitor.down` holds the time of the failure). Checking or writing a file costs ~5 ms there, so nothing is written while the monitor answers. While it is down the items it measures are left out, not shown from a cache: an old figure would pass for a current one.
 - **No curl in statusline.sh** — use `/dev/tcp`.
 - **No `$(...)` in statusline.sh** — each fork costs ~30 ms under MSYS; helpers set globals instead (`FMT` / `PC` / `BAR` / `RESP`).
 - **Spawn as little as possible** — bash regex instead of sed/grep.
@@ -51,7 +52,7 @@ monitor/app.js (Node.js)              statusline/statusline.sh (Bash)
 ## Installing without overwriting the user's setup
 
 - `settings.json` is always edited by node (key order and formatting survive), never with `ConvertTo-Json`.
-- An existing `statusline.sh` / `statusLine` that is not ours is backed up as `.bak` before writing. Ours is recognized by `cc-footprint` in the first 5 lines of statusline.sh, and by `statusLine.command` being exactly `bash ~/.claude/statusline.sh`.
+- An existing `statusline.sh` / `statusLine` that is not ours is backed up as `.bak` before writing. Ours is recognized by `cc-footprint` in the first 5 lines of statusline.sh, and by `statusLine.command` being `bash` followed by that script's absolute path (`scripts/statusline-setting.js` builds the command, quoting a path that has a space in it).
 - The uninstaller removes only what belongs to this tool.
 
 ## Key commands

@@ -5,10 +5,11 @@
 // keep their order and the file its formatting. The installers of every
 // platform share it.
 //
-//   node statusline-setting.js set   <settings.json> <command>
-//   node statusline-setting.js unset <settings.json> <command>
+//   node statusline-setting.js set   <settings.json> <statusline.sh>
+//   node statusline-setting.js unset <settings.json> <statusline.sh>
 //
-// Prints one word for the installer to act on:
+// The script's path is given with forward slashes. Prints one word for the
+// installer to act on:
 //   set    same | added | replaced:<previous command>
 //          (before a replace the file is copied to <settings.json>.bak)
 //   unset  removed | skip      (skip: the setting there is not ours)
@@ -16,11 +17,17 @@
 
 const fs = require('fs');
 
-const [action, file, command] = process.argv.slice(2);
-if (!['set', 'unset'].includes(action) || !file || !command) {
-  console.error('usage: statusline-setting.js set|unset <settings.json> <command>');
+const [action, file, script] = process.argv.slice(2);
+if (!['set', 'unset'].includes(action) || !file || !script) {
+  console.error('usage: statusline-setting.js set|unset <settings.json> <statusline.sh>');
   process.exit(2);
 }
+
+// The command Claude Code is to run. A path with a space in it (a home
+// such as C:/Users/John Doe) must be quoted, in double quotes because
+// cmd, PowerShell and sh all read those; any other path is left bare.
+const bare = 'bash ' + script;
+const command = /^[\w./:~+-]+$/.test(script) ? bare : `bash "${script}"`;
 
 let settings = {};
 try {
@@ -35,17 +42,20 @@ try {
 
 const save = () => fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
 const previous = settings.statusLine && settings.statusLine.command;
+// The bare form of a path that needs quotes never ran, but it is ours too:
+// it is what this script wrote before it quoted
+const ours = previous === command || previous === bare;
 
 if (action === 'set') {
   if (previous === command) {
     console.log('same');
   } else {
-    if (previous) fs.copyFileSync(file, file + '.bak');
+    if (previous && !ours) fs.copyFileSync(file, file + '.bak');
     settings.statusLine = { type: 'command', command };
     save();
-    console.log(previous ? 'replaced:' + previous : 'added');
+    console.log(previous && !ours ? 'replaced:' + previous : 'added');
   }
-} else if (previous === command) {
+} else if (ours) {
   delete settings.statusLine;
   save();
   console.log('removed');

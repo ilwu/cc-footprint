@@ -24,7 +24,9 @@ if [[ -n "${SMOKE_SERVICE:-}" ]]; then
   fi
 else
   tmp_home="$(mktemp -d)"
-  export HOME="$tmp_home"
+  # With a space in it, as a home may well have
+  export HOME="$tmp_home/home dir"
+  mkdir "$HOME"
   # The throwaway HOME is not where systemd or launchd look for units
   export CC_FOOTPRINT_NO_SERVICE=1
 fi
@@ -95,7 +97,8 @@ fi
 
 settings="$(cat "$HOME/.claude/settings.json")"
 [[ "$settings" == *'"theme": "dark"'* ]] || fail "settings.json lost the person's other settings"
-[[ "$settings" == *"bash $HOME/.claude/statusline.sh"* ]] || fail "statusLine does not point at our script"
+sl_command="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).statusLine.command' "$HOME/.claude/settings.json")"
+[[ "$sl_command" == bash*"$HOME/.claude/statusline.sh"* ]] || fail "statusLine does not point at our script: $sl_command"
 grep -q 'my-own.sh' "$HOME/.claude/settings.json.bak" || fail "the previous statusLine was not backed up"
 pass "statusLine set, the rest of settings.json kept, the old one backed up"
 
@@ -122,6 +125,16 @@ printf '%s\n' "$line" | sed 's/^/     /'
 [[ "$line" == *"34% 2h13m"* ]] || fail "the statusline does not show the reset countdown"
 [[ "$line" == *"/work/api"* ]] || fail "the statusline does not show the project path"
 pass "the statusline prints memory, growth and the reset countdown"
+
+# The command as settings.json has it, run through a shell as Claude Code
+# runs it: whatever the path to the script holds, it has to get there whole
+line="$(printf '{"session_id":"%s","workspace":{"project_dir":"/work/api"}}' "$sid" | sh -c "$sl_command" 2>&1 | strip)" || true
+[[ "$line" == *"/work/api"* ]] || fail "the statusLine command does not run: $sl_command ($line)"
+# The context's share is null until the first response, and must not be
+# taken from the limits, which carry the same key
+line="$(printf '{"session_id":"%s","context_window":{"used_percentage":null},"rate_limits":{"five_hour":{"used_percentage":34}}}' "$sid" | sl | strip)"
+[[ "$line" == *"?% "*"5h "*"34%"* ]] || fail "a context share of null was read from the limits: $line"
+pass "the statusLine command runs as written, and a null context share stays unknown"
 
 # The /footprint hint follows the plugin's state in settings.json: how to get
 # it while it is missing, the command itself once it is enabled
@@ -167,5 +180,16 @@ if [[ -n "${SMOKE_SERVICE:-}" ]]; then
   fi
 fi
 pass "uninstall.sh removed what was installed and nothing else"
+
+# With the monitor gone the statusline still prints what Claude Code gave
+# it and leaves out what the monitor measures, and it notes the failure so
+# that the next renders do not wait on the port (a refused connection takes
+# 2 s under Git Bash)
+line="$(printf '{"session_id":"%s","context_window":{"used_percentage":31}}' "$sid" | /bin/bash "$root/statusline/statusline.sh" | strip)"
+[[ "$line" == *"Ctx "*"31%"*"$sid"* ]] || fail "without the monitor the statusline lost Claude Code's own items: $line"
+[[ "$line" != *"Sys "* && "$line" != *"Claude "* ]] || fail "memory items are shown while the monitor is down: $line"
+[[ -s /tmp/claude-sl-monitor.down ]] || fail "the failed connection was not noted"
+rm -f /tmp/claude-sl-monitor.down
+pass "without the monitor the statusline shows Claude Code's own items only, and backs off"
 
 printf '\nAll checks passed.\n'

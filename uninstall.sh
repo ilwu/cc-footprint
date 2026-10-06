@@ -63,7 +63,7 @@ if [[ -f "$statusline" ]]; then
 fi
 settings="$claude_dir/settings.json"
 if [[ -f "$settings" ]] && command -v node >/dev/null 2>&1; then
-  result="$(node "$dir/scripts/statusline-setting.js" unset "$settings" "bash $statusline" 2>/dev/null || true)"
+  result="$(node "$dir/scripts/statusline-setting.js" unset "$settings" "$statusline" 2>/dev/null || true)"
   [[ "$result" == removed ]] && ok "Removed statusLine from settings.json"
   [[ -f "$settings.bak" ]] && note "Your statusLine from before install is in settings.json.bak"
 fi
@@ -85,7 +85,9 @@ fi
 step "[4/5] Removing config..."
 if [[ -d "$config_dir" ]]; then rm -rf "$config_dir"; ok "Removed $config_dir"
 else note "No config dir found"; fi
-rm -f /tmp/claude-sl-*.mem 2>/dev/null || true
+# The statusline's note that the monitor was down; earlier versions also
+# kept a memory cache per session beside it
+rm -f /tmp/claude-sl-* 2>/dev/null || true
 
 # ── Remove the Claude Code plugin ─────────────────────────────────
 step "[5/5] Removing the Claude Code plugin..."

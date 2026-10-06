@@ -89,7 +89,7 @@ cd cc-footprint
 
 Open a Claude Code session and the statusline is there. The installer:
 
-1. Installs the npm dependencies
+1. Installs the npm dependency that draws the icon (Windows and macOS; Linux has no icon and needs none)
 2. Copies the statusline script to `~/.claude/`
 3. Points `statusLine` in `settings.json` at it — one of your own is backed up as `*.bak` first; the rest of `settings.json` and its key order are left as they are
 4. Makes the background program start when you log in: a startup shortcut on Windows, a systemd user service on Linux, a launchd agent on macOS
@@ -116,7 +116,7 @@ To have only the plugin on a machine without the clone, inside Claude Code:
 ./uninstall.sh      # Linux, macOS
 ```
 
-Removes the start at login, this tool's statusline, its `statusLine` setting and its per-session cache files, the plugin with its marketplace registration and cached copies, the marked global setting, and the config directory. A statusline this tool did not install is left alone; if a setting was backed up at install time it is in `settings.json.bak`. The project folder stays; delete it yourself.
+Removes the start at login, this tool's statusline, its `statusLine` setting and its temporary files, the plugin with its marketplace registration and cached copies, the marked global setting, and the config directory. A statusline this tool did not install is left alone; if a setting was backed up at install time it is in `settings.json.bak`. The project folder stays; delete it yourself.
 
 ## Then shrink it
 
@@ -198,7 +198,7 @@ Watch `MCP$` for the effect. To change the subagent's model, edit `model:` in `b
 └───────────────────────────────────────────────────────────────┘
 ```
 
-Claude Code does not pass the process ID to the statusline, so sessions are mapped to processes through the session files Claude Code writes itself. An MCP server is a process whose command line mentions `mcp` and that has been alive for 30 seconds or more; one whose parent is gone is an orphan. When the background program is down, the statusline falls back to the last cached memory figure; the plugin still reports growth and the compaction threshold from Claude Code's own numbers, but without memory or composition. (The faster `wmic` of old is gone from Windows 11 24H2 on.)
+Claude Code does not pass the process ID to the statusline, so sessions are mapped to processes through the session files Claude Code writes itself. An MCP server is a process whose command line mentions `mcp` and that has been alive for 30 seconds or more; one whose parent is gone is an orphan. When the background program is down, the statusline leaves out what that program measures and shows only what Claude Code itself reports; the plugin still reports growth and the compaction threshold from Claude Code's own numbers, but without memory or composition. (The faster `wmic` of old is gone from Windows 11 24H2 on.)
 
 ### Configuration
 
@@ -218,9 +218,9 @@ The background program listens on `127.0.0.1:19823`. To change the port, edit `P
 
 ### Troubleshooting
 
-**The statusline shows `offline`, `?` or nothing** — the background program is not running, or cannot be reached. The simplest fix is to re-run the installer, which on all three platforms stops the old one and starts it again; or by hand:
+**`Sys`, `Claude` and the other measured items are missing from the statusline** — the background program is not running, or cannot be reached, and the statusline shows only what Claude Code itself reports. The simplest fix is to re-run the installer, which on all three platforms stops the old one and starts it again; or by hand (the items are back within 30 seconds, which is how often the statusline asks again):
 
-- Windows — there should be an orange footprint icon at the bottom right (it may be tucked into the `^` overflow area of the taskbar). None: double-click `monitor/start.vbs`. There but still `offline`: choose Exit in the icon's menu, then double-click.
+- Windows — there should be an orange footprint icon at the bottom right (it may be tucked into the `^` overflow area of the taskbar). None: double-click `monitor/start.vbs`. There but the items are still missing: choose Exit in the icon's menu, then double-click.
 - Linux — `systemctl --user restart cc-footprint`; `systemctl --user status cc-footprint` shows its state. Where there is no systemd user session, the installer prints the command to start it yourself: `nohup node <clone>/monitor/app.js >/dev/null 2>&1 &`.
 - macOS — `launchctl kickstart -k gui/$(id -u)/com.ilwu.cc-footprint`; `launchctl print gui/$(id -u)/com.ilwu.cc-footprint` shows its state.
 

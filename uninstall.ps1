@@ -9,6 +9,15 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $claudeDir = Join-Path $env:USERPROFILE ".claude"
 $configDir = Join-Path $env:USERPROFILE ".cc-footprint"
 
+# Runs a native command and returns all it printed, stderr included, as
+# text. Under "Stop", Windows PowerShell 5.1 makes a terminating error of the
+# first line a native command writes to a redirected stderr, so the command
+# runs under "Continue"; $LASTEXITCODE says how it went.
+function Invoke-Native([scriptblock]$Command) {
+    $ErrorActionPreference = "Continue"
+    & $Command 2>&1 | ForEach-Object { "$_" }
+}
+
 Write-Host ""
 Write-Host "  cc-footprint - Uninstaller" -ForegroundColor Cyan
 Write-Host "  ==========================" -ForegroundColor DarkGray
@@ -54,8 +63,7 @@ if (Test-Path $statuslineFile) {
 # Node edits the JSON so key order and formatting survive
 $settingsFile = Join-Path $claudeDir "settings.json"
 if (Test-Path $settingsFile) {
-    $statuslineCmd = "bash " + ($statuslineFile -replace '\\', '/')
-    $result = node (Join-Path $scriptDir "scripts\statusline-setting.js") unset $settingsFile $statuslineCmd
+    $result = node (Join-Path $scriptDir "scripts\statusline-setting.js") unset $settingsFile ($statuslineFile -replace '\\', '/')
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  WARNING: could not read $settingsFile - left untouched" -ForegroundColor Yellow
     } elseif ($result -eq "removed") {
@@ -105,21 +113,22 @@ if (Test-Path $configDir) {
     Write-Host "  No config dir found" -ForegroundColor DarkGray
 }
 
-# The statusline's memory cache, one file per session. It writes to /tmp,
-# which under Git Bash is %TEMP%
+# The statusline's note that the monitor was down; earlier versions also
+# kept a memory cache per session beside it. It writes to /tmp, which under
+# Git Bash is %TEMP%
 $caches = @(Get-ChildItem (Join-Path $env:TEMP "claude-sl-*") -ErrorAction SilentlyContinue)
 if ($caches) {
     $caches | Remove-Item -Force -ErrorAction SilentlyContinue
-    Write-Host "  Removed $($caches.Count) statusline cache file(s)" -ForegroundColor Green
+    Write-Host "  Removed $($caches.Count) statusline temporary file(s)" -ForegroundColor Green
 }
 
 # ── Remove the Claude Code plugin ────────────────────────────────
 Write-Host "[6/6] Removing the Claude Code plugin..." -ForegroundColor Yellow
 if (Get-Command claude -ErrorAction SilentlyContinue) {
-    $out = claude plugin uninstall cc-footprint@cc-footprint 2>&1
+    $out = Invoke-Native { claude plugin uninstall cc-footprint@cc-footprint }
     if ($LASTEXITCODE -eq 0) { Write-Host "  Plugin removed" -ForegroundColor Green }
     else { Write-Host "  Plugin was not installed" -ForegroundColor DarkGray }
-    $out = claude plugin marketplace remove cc-footprint 2>&1
+    $out = Invoke-Native { claude plugin marketplace remove cc-footprint }
     if ($LASTEXITCODE -eq 0) { Write-Host "  Marketplace entry removed" -ForegroundColor Green }
 } else {
     Write-Host "  claude command not found - if the plugin is installed, remove it with:" -ForegroundColor DarkGray

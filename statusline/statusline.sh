@@ -6,7 +6,16 @@ IFS= read -r -d '' input  # builtin; $(cat) would cost a fork + exec
 # ── Parse JSON (pure bash regex, zero process spawning) ──────────
 # Written for bash 3.2 as well (macOS ships it): a literal { is [{], not a
 # backslash-brace, which its regex library does not take.
-[[ "$input" =~ \"used_percentage\":([0-9]+) ]]           && ctx="${BASH_REMATCH[1]}"
+# The rate limits carry a used_percentage too, and the context's is null
+# until the first response: look only at what follows "context_window" and
+# comes before "rate_limits". (The keys are in variables because bash 3.2
+# mishandles an escaped quote inside ${var#pattern}.)
+cw_key='"context_window":' rl_key='"rate_limits"'
+cw="${input#*$cw_key}"
+if [[ "$cw" != "$input" ]]; then
+  cw="${cw%%$rl_key*}"
+  [[ "$cw" =~ \"used_percentage\":([0-9]+) ]]            && ctx="${BASH_REMATCH[1]}"
+fi
 [[ "$input" =~ \"session_id\":\"([^\"]+)\" ]]             && sid="${BASH_REMATCH[1]}"
 [[ "$input" =~ \"project_dir\":\"([^\"]+)\" ]]            && proj="${BASH_REMATCH[1]}"
 [[ "$input" =~ \"five_hour\":[{][^}]*\"used_percentage\":([0-9]+) ]] && five="${BASH_REMATCH[1]}"
@@ -44,11 +53,39 @@ http_get() {
   RESP="${body//$'\r'/}"
 }
 
+# Now in epoch seconds, without a fork: EPOCHSECONDS on bash 5, printf's
+# %(%s)T on 4.2 and later. macOS's bash 3.2 has neither, and there a fork
+# is cheap, so date answers; any other old bash shows no countdown.
+NOW=${EPOCHSECONDS:-}
+[[ -z "$NOW" ]] && printf -v NOW '%(%s)T' -1 2>/dev/null
+[[ "$NOW" =~ ^[0-9]+$ ]] || NOW=""
+[[ -z "$NOW" && "$OSTYPE" == darwin* ]] && NOW=$(date +%s)
+
 # ── Query monitor API (monitor maps session_id -> claude.exe PID) ──
-mem_cache="/tmp/claude-sl-${sid}.mem"
-resp=""
-if [[ -n "$sid" ]]; then
-  http_get "/session/$sid"; resp=$RESP
+# A monitor that is down is asked again only every 30 s: under MSYS a
+# refused connection takes 2 s to come back, far longer than Claude Code
+# waits for this script. $monitor_down holds when the last attempt failed,
+# and is rewritten before a retry, so that a run cancelled while it waits
+# still leaves the next ones the fast path. Writing a file costs ~5 ms
+# there, which is why nothing is written while the monitor answers.
+monitor_down="/tmp/claude-sl-monitor.down"
+resp="" ask=1 was_down=""
+if [[ -n "$NOW" && -s "$monitor_down" ]]; then
+  was_down=1
+  read -r down_at < "$monitor_down"
+  if [[ "$down_at" =~ ^[0-9]+$ ]] && ((NOW >= down_at && NOW - down_at < 30)); then
+    ask=""
+  else
+    echo "$NOW" > "$monitor_down"
+  fi
+fi
+if [[ -n "$sid" && -n "$ask" ]]; then
+  if http_get "/session/$sid"; then
+    resp=$RESP
+    [[ -n "$was_down" ]] && : > "$monitor_down"
+  elif [[ -n "$NOW" ]]; then
+    echo "$NOW" > "$monitor_down"
+  fi
 fi
 
 # Parse API response
@@ -91,14 +128,6 @@ tok() {
   if (($1 >= 1000)); then TOK="$((($1 + 500) / 1000))k"; else TOK="<1k"; fi
 }
 
-# Now in epoch seconds, without a fork: EPOCHSECONDS on bash 5, printf's
-# %(%s)T on 4.2 and later. macOS's bash 3.2 has neither, and there a fork
-# is cheap, so date answers; any other old bash shows no countdown.
-NOW=${EPOCHSECONDS:-}
-[[ -z "$NOW" ]] && printf -v NOW '%(%s)T' -1 2>/dev/null
-[[ "$NOW" =~ ^[0-9]+$ ]] || NOW=""
-[[ -z "$NOW" && "$OSTYPE" == darwin* ]] && NOW=$(date +%s)
-
 # Epoch seconds of a limit reset -> time left in LEFT (4d21h, 2h13m, 45m);
 # empty when unknown or already past
 left() {
@@ -114,19 +143,11 @@ left() {
 fmt "$cld_total";  cld_fmt=$FMT
 fmt "$sess_mem";   sess_fmt=$FMT
 
-# Cache for fallback
-if [[ -n "$sess_mem" ]]; then
-  echo "${sys_pct:-?} ${cld_fmt} ${sess_fmt}" > "$mem_cache"
-elif [[ -f "$mem_cache" ]]; then
-  read -r sys_pct_c cld_fmt_c sess_fmt_c < "$mem_cache"
-  sys_pct="${sys_pct:-$sys_pct_c}"
-  cld_fmt="${cld_fmt:-$cld_fmt_c}"
-  sess_fmt="${sess_fmt:-$sess_fmt_c}"
-fi
-
-# Default display if API didn't return config
+# Without the monitor there is no telling which items are switched on, and
+# nothing to show for the ones it measures (an old figure would pass for a
+# current one): what is left is the default items Claude Code itself supplies
 if [[ -z "$display" ]]; then
-  display='"sys_mem","claude_mem","ctx","mcp_use","five_hour","week","resets","session_id","path"'
+  display='"ctx","five_hour","week","resets","session_id","path"'
 fi
 
 # Check if item is enabled

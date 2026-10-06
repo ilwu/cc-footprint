@@ -4,7 +4,8 @@
 # - Copies the statusline script to ~/.claude/ and points statusLine at it
 #   (a statusline of your own is backed up to *.bak first)
 # - Starts the monitor now and at login (a systemd user service on Linux,
-#   a launchd agent on macOS)
+#   a launchd agent on macOS, where npm also installs what draws its menu
+#   bar icon)
 # - Installs the Claude Code plugin (toasts and the /footprint pane) from
 #   this folder, unless --no-plugin
 # - Lists the optional steps; none of them is applied for you
@@ -87,7 +88,7 @@ cp "$dir/statusline/statusline.sh" "$statusline"
 ok "Copied statusline.sh -> $statusline"
 
 settings="$claude_dir/settings.json"
-result="$(node "$dir/scripts/statusline-setting.js" set "$settings" "bash $statusline")" \
+result="$(node "$dir/scripts/statusline-setting.js" set "$settings" "$statusline")" \
   || die "could not update $settings (invalid JSON?) - left untouched"
 case "$result" in
   same)       ok "settings.json already points at statusline.sh" ;;
@@ -106,7 +107,7 @@ if has_systemd; then
 Description=cc-footprint - Claude Code session footprint monitor
 
 [Service]
-ExecStart=$node_bin $dir/monitor/app.js
+ExecStart="$node_bin" "$dir/monitor/app.js"
 Restart=on-failure
 
 [Install]
@@ -138,11 +139,22 @@ EOF
   ok "launchd agent: $agent_file"
 else
   warn "no systemd user session here, so the monitor will not start at login."
-  printf '           Start it yourself with: nohup %s %s/monitor/app.js >/dev/null 2>&1 &\n' "$node_bin" "$dir"
+  printf '           Start it yourself with: nohup "%s" "%s/monitor/app.js" >/dev/null 2>&1 &\n' "$node_bin" "$dir"
 fi
 
 # ── Start monitor ─────────────────────────────────────────────────
 step "[4/5] Starting monitor..."
+# The menu bar icon is drawn by systray2, the monitor's one dependency and
+# an optional one. Linux has no tray, so nothing is installed there.
+tray=""
+if is_mac; then
+  if command -v npm >/dev/null 2>&1 && (cd "$dir/monitor" && npm install --silent >/dev/null 2>&1); then
+    tray=1
+    ok "Dependencies installed"
+  else
+    warn "npm install failed: the monitor will run without its menu bar icon"
+  fi
+fi
 if has_systemd; then
   systemctl --user start "$unit"
 elif has_launchd; then
@@ -182,11 +194,12 @@ printf '\n  \033[32mInstallation complete!\033[0m\n\n'
 printf '  \033[36mWhat'"'"'s next:\033[0m\n'
 printf '    - Open a Claude Code session to see the statusline\n'
 printf '    - In a session, /footprint opens the pane; a turn that bloats the context gets a toast\n'
-if is_mac; then
+if [[ -n "$tray" ]]; then
   printf '    - Look for the orange footprint in the menu bar; its menu switches items on and off\n'
   printf '      (so does editing %s)\n' "$config_file"
 else
-  printf '    - There is no tray icon on Linux: choose the items shown by editing\n'
+  if is_mac; then printf '    - Without the menu bar icon, choose the items shown by editing\n'
+  else printf '    - There is no tray icon on Linux: choose the items shown by editing\n'; fi
   printf '      %s (true/false per item, applied at once)\n' "$config_file"
 fi
 

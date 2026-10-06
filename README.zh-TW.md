@@ -89,7 +89,7 @@ cd cc-footprint
 
 打開 Claude Code session 就能看到狀態列。安裝程式會：
 
-1. 安裝 npm 依賴
+1. 安裝畫圖示用的 npm 依賴（Windows 與 macOS；Linux 沒有圖示，不需要）
 2. 複製 statusline 腳本到 `~/.claude/`
 3. 把 `settings.json` 的 `statusLine` 指向它 — 原本有自己的會先備份成 `*.bak`；`settings.json` 其他內容和 key 的順序不動
 4. 設定登入時自動啟動背景程式：Windows 是啟動捷徑，Linux 是 systemd 使用者服務，macOS 是 launchd agent
@@ -116,7 +116,7 @@ cd cc-footprint
 ./uninstall.sh      # Linux、macOS
 ```
 
-會移除開機啟動、本工具的 statusline、`statusLine` 設定和每個 session 的快取檔、plugin 連同 marketplace 登記和快取副本、有標記的全域設定，以及設定目錄。不是本工具裝的 statusline 不會動；安裝前的設定若有備份，在 `settings.json.bak`。專案資料夾留著，要刪自行處理。
+會移除開機啟動、本工具的 statusline、`statusLine` 設定和暫存檔、plugin 連同 marketplace 登記和快取副本、有標記的全域設定，以及設定目錄。不是本工具裝的 statusline 不會動；安裝前的設定若有備份，在 `settings.json.bak`。專案資料夾留著，要刪自行處理。
 
 ## 然後怎麼降下來
 
@@ -195,7 +195,7 @@ cd cc-footprint
 └───────────────────────────────────────────────────────────────┘
 ```
 
-Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對應讀的是 Claude Code 自己寫的 session 檔。MCP server 的判定：命令列含 `mcp` 且已經跑了 30 秒以上；父行程不在的算孤兒。背景程式不在時，狀態列退回上次快取的記憶體數字；plugin 仍用 Claude Code 自己的數字回報成長量和壓縮門檻，但沒有記憶體和組成明細。（以前較快的 `wmic`，Windows 11 24H2 起已經移除。）
+Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對應讀的是 Claude Code 自己寫的 session 檔。MCP server 的判定：命令列含 `mcp` 且已經跑了 30 秒以上；父行程不在的算孤兒。背景程式不在時，狀態列不顯示它量測的項目，只剩 Claude Code 自己提供的；plugin 仍用 Claude Code 自己的數字回報成長量和壓縮門檻，但沒有記憶體和組成明細。（以前較快的 `wmic`，Windows 11 24H2 起已經移除。）
 
 ### 設定
 
@@ -215,9 +215,9 @@ Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對�
 
 ### 疑難排解
 
-**狀態列顯示 `offline`、`?` 或空白** — 背景程式沒在跑，或連不上。最簡單的是重跑安裝程式，三個平台都會先停掉舊的再啟動；或者手動：
+**狀態列少了 `Sys`、`Claude` 這些量測項目** — 背景程式沒在跑，或連不上，狀態列只顯示 Claude Code 自己提供的項目。最簡單的是重跑安裝程式，三個平台都會先停掉舊的再啟動；或者手動（項目最多 30 秒就會回來，狀態列每隔這麼久才再問一次）：
 
-- Windows — 右下角應該有橘色腳印圖示（可能縮在工作列 `^` 的溢位區域）。沒有就雙擊 `monitor/start.vbs`；有但還是 `offline`，先在圖示選單按 Exit 再雙擊。
+- Windows — 右下角應該有橘色腳印圖示（可能縮在工作列 `^` 的溢位區域）。沒有就雙擊 `monitor/start.vbs`；有但項目還是沒回來，先在圖示選單按 Exit 再雙擊。
 - Linux — `systemctl --user restart cc-footprint`；看狀態用 `systemctl --user status cc-footprint`。沒有 systemd 使用者 session 的環境，安裝程式會印出手動啟動的指令：`nohup node <clone>/monitor/app.js >/dev/null 2>&1 &`。
 - macOS — `launchctl kickstart -k gui/$(id -u)/com.ilwu.cc-footprint`；看狀態用 `launchctl print gui/$(id -u)/com.ilwu.cc-footprint`。
 

@@ -33,6 +33,15 @@ $monitorDir = Join-Path $scriptDir "monitor"
 $statuslineDir = Join-Path $scriptDir "statusline"
 $claudeDir = Join-Path $env:USERPROFILE ".claude"
 
+# Runs a native command and returns all it printed, stderr included, as
+# text. Under "Stop", Windows PowerShell 5.1 makes a terminating error of the
+# first line a native command writes to a redirected stderr, so the command
+# runs under "Continue"; $LASTEXITCODE says how it went.
+function Invoke-Native([scriptblock]$Command) {
+    $ErrorActionPreference = "Continue"
+    & $Command 2>&1 | ForEach-Object { "$_" }
+}
+
 Write-Host ""
 Write-Host "  cc-footprint - Installer" -ForegroundColor Cyan
 Write-Host "  ========================" -ForegroundColor DarkGray
@@ -80,9 +89,9 @@ if ($existing) {
 # ── npm install ───────────────────────────────────────────────────
 Write-Host "[2/6] Installing dependencies..." -ForegroundColor Yellow
 Push-Location $monitorDir
-npm install --silent 2>&1 | Out-Null
+Invoke-Native { npm install --silent } | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    npm install 2>&1
+    Invoke-Native { npm install } | ForEach-Object { Write-Host "  $_" }
     Write-Host "  ERROR: npm install failed" -ForegroundColor Red
     Pop-Location
     exit 1
@@ -115,8 +124,7 @@ Write-Host "  Copied statusline.sh -> $statuslineDst" -ForegroundColor Green
 # and formatting survive (ConvertTo-Json reorders keys and re-indents the
 # file); a different statusLine is backed up to settings.json.bak first.
 $settingsFile = Join-Path $claudeDir "settings.json"
-$statuslineCmd = "bash " + ($statuslineDst -replace '\\', '/')
-$result = node (Join-Path $scriptDir "scripts\statusline-setting.js") set $settingsFile $statuslineCmd
+$result = node (Join-Path $scriptDir "scripts\statusline-setting.js") set $settingsFile ($statuslineDst -replace '\\', '/')
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  ERROR: could not update $settingsFile (invalid JSON?) - left untouched" -ForegroundColor Red
     exit 1
@@ -179,9 +187,9 @@ if ($NoPlugin) {
 } else {
     $pluginOk = $false
     try {
-        $out = claude plugin marketplace add $scriptDir 2>&1
+        $out = Invoke-Native { claude plugin marketplace add $scriptDir }
         if ($LASTEXITCODE -eq 0) {
-            $out = claude plugin install cc-footprint@cc-footprint 2>&1
+            $out = Invoke-Native { claude plugin install cc-footprint@cc-footprint }
             $pluginOk = ($LASTEXITCODE -eq 0)
         }
     } catch {}

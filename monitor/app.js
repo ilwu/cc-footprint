@@ -497,6 +497,8 @@ async function startTray() {
     try {
       await openTray(SysTray, items, renamed);
       console.log('[tray] ready');
+      // The first measurement may have come in while the helper started
+      if (systemMemPct !== null) updateTray();
       return;
     } catch (e) {
       console.error(`[tray] failed${renamed ? ' under our own name, trying the helper as shipped' : ''}:`, e.message);
@@ -541,8 +543,9 @@ async function openTray(SysTray, items, renamed) {
     childProcess.spawn = (file, ...rest) =>
       spawn(TRAY_HELPER.shipped.test(path.basename(file)) ? (ownTrayHelper(file) || file) : file, ...rest);
   }
+  let tray;
   try {
-    systray = new SysTray({
+    tray = new SysTray({
       menu: {
         icon: iconBase64,
         title: '',
@@ -552,10 +555,13 @@ async function openTray(SysTray, items, renamed) {
       debug: false,
       copyDir: false,
     });
-    await systray.ready();
+    await tray.ready();
   } finally {
     childProcess.spawn = spawn;
   }
+  // Only now is it the tray to update: an action sent to a helper that
+  // never answers would wait on it for good
+  systray = tray;
 
   systray.onClick(action => {
     // Exit
@@ -588,9 +594,11 @@ loadConfig();
 saveConfig();
 collector.prepare(CONFIG_DIR);
 
-server.listen(PORT, '127.0.0.1', async () => {
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`cc-footprint  http://127.0.0.1:${PORT}`);
-  await startTray();
+  // The icon is an extra: a helper that fails to start, or starts and never
+  // answers, must not hold up the measuring
+  startTray().catch(e => console.error('[tray]', e.message));
   collect();
   setInterval(collect, INTERVAL);
 });
