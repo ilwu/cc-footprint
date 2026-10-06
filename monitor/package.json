@@ -1,0 +1,13 @@
+{
+  "name": "cc-footprint",
+  "version": "1.0.0",
+  "description": "Per-session RAM, context and usage of Claude Code, in its own statusline",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "node --test"
+  },
+  "optionalDependencies": {
+    "systray2": "^2.1.4"
+  }
+}

@@ -1,0 +1,97 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { measure } = require('./proctree');
+
+const MB = 1048576;
+const NOW = 1000000;
+const OLD = NOW - 600000; // started ten minutes ago
+
+// pid, ppid, MB, born, name, mcp
+const row = (pid, ppid, mb, born, name, mcp = false) => ({ pid, ppid, mem: mb * MB, born, name, mcp });
+
+test('a session is its claude process plus everything under it', () => {
+  const { sessions } = measure([
+    row(10, 1, 400, OLD, 'claude.exe'),
+    row(11, 10, 20, OLD + 1, 'cmd.exe'),
+    row(12, 11, 90, OLD + 2, 'pwsh.exe'),
+    row(20, 1, 300, OLD, 'claude.exe'),
+    row(99, 1, 500, OLD, 'chrome.exe'),
+  ], new Set(), NOW);
+
+  assert.deepEqual(sessions.get(10), { mem: 510 * MB, self: 400 * MB, procs: 3, mcp_mem: 0, mcp_count: 0 });
+  assert.deepEqual(sessions.get(20), { mem: 300 * MB, self: 300 * MB, procs: 1, mcp_mem: 0, mcp_count: 0 });
+  assert.equal(sessions.has(99), false);
+});
+
+test('an MCP server behind a wrapper counts once, with its whole subtree', () => {
+  const { sessions, orphans } = measure([
+    row(10, 1, 400, OLD, 'claude.exe'),
+    row(11, 10, 5, OLD + 1, 'cmd.exe', true),   // cmd /c npx some-mcp
+    row(12, 11, 40, OLD + 2, 'node.exe', true), // npx
+    row(13, 12, 80, OLD + 3, 'node.exe', true), // the server
+    row(14, 10, 60, OLD + 1, 'python.exe', true),
+  ], new Set(), NOW);
+
+  const s = sessions.get(10);
+  assert.equal(s.mcp_count, 2);
+  assert.equal(s.mcp_mem, 185 * MB);
+  assert.equal(s.mem, 585 * MB);
+  assert.equal(orphans, 0);
+});
+
+test('a shell that only mentions mcp for a moment is not a server', () => {
+  const { sessions } = measure([
+    row(10, 1, 400, OLD, 'claude.exe'),
+    row(11, 10, 30, NOW - 2000, 'bash.exe', true), // grep mcp ...
+  ], new Set(), NOW);
+
+  const s = sessions.get(10);
+  assert.equal(s.mcp_count, 0);
+  assert.equal(s.mem, 430 * MB); // still part of the session's memory
+});
+
+test('a session nested under another is measured on its own', () => {
+  const { sessions } = measure([
+    row(10, 1, 400, OLD, 'claude.exe'),
+    row(11, 10, 20, OLD + 1, 'bash.exe'),
+    row(12, 11, 300, OLD + 2, 'claude.exe'),
+    row(13, 12, 50, OLD + 3, 'node.exe'),
+  ], new Set(), NOW);
+
+  assert.equal(sessions.get(10).mem, 420 * MB);
+  assert.equal(sessions.get(12).mem, 350 * MB);
+});
+
+test('a reused pid does not adopt an older stranger', () => {
+  const { sessions } = measure([
+    row(10, 1, 400, OLD, 'claude.exe'),
+    row(11, 10, 900, OLD - 5000, 'unrelated.exe'), // older than its "parent"
+  ], new Set(), NOW);
+
+  assert.equal(sessions.get(10).mem, 400 * MB);
+});
+
+test('a session file makes a node process a session; the desktop app is not one', () => {
+  const { sessions } = measure([
+    row(10, 1, 350, OLD, 'node.exe'),     // npm-installed CLI
+    row(20, 1, 600, OLD, 'Claude.exe'),   // desktop app
+    row(21, 20, 70, OLD + 1, 'node.exe', true), // its MCP server: alive parent, not ours
+  ], new Set([10]), NOW);
+
+  assert.deepEqual([...sessions.keys()], [10]);
+});
+
+test('MCP servers whose parent is gone are orphans', () => {
+  const { orphans, orphanMem } = measure([
+    row(10, 1, 400, OLD, 'claude.exe'),
+    row(31, 7777, 5, OLD, 'cmd.exe', true),     // parent 7777 no longer exists
+    row(32, 31, 120, OLD + 1, 'node.exe', true),
+    row(40, 8888, 60, OLD, 'node.exe', true),
+    row(50, 9999, 70, NOW - 1000, 'bash.exe', true), // too young to be a server
+  ], new Set(), NOW);
+
+  assert.equal(orphans, 2);
+  assert.equal(orphanMem, 185 * MB);
+});

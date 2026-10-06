@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<!--
+  The repository's social preview, 1280x640. Render it with a headless browser:
+
+    chrome --headless=new --hide-scrollbars --window-size=1280,640 \
+           --screenshot=social-preview.png social-preview.html
+
+  The statusline wants a monospace font that has the block characters at the
+  cell's own width. Cascadia Mono is used when installed; to be sure of it,
+  put a copy of CascadiaMono.ttf beside this file while rendering.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face {
+    font-family: 'Preview Mono';
+    src: local('Cascadia Mono'), local('Cascadia Code'), url('CascadiaMono.ttf');
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1280px; height: 640px;
+    background: linear-gradient(135deg, #1a1b26 0%, #24283b 50%, #1a1b26 100%);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #c0caf5;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+  .title {
+    font-size: 64px;
+    font-weight: 700;
+    color: #D97757;
+    margin-bottom: 14px;
+    letter-spacing: -1px;
+  }
+  .subtitle {
+    font-size: 28px;
+    color: #c0caf5;
+    margin-bottom: 52px;
+  }
+  .statusline {
+    background: #16161e;
+    border: 1px solid #3b4261;
+    border-radius: 8px;
+    padding: 18px 30px;
+    font-family: 'Preview Mono', 'Consolas', monospace;
+    font-size: 19px;
+    white-space: pre;
+  }
+  .sep { color: #3b4261; }
+  .red { color: #f7768e; }
+  .yellow { color: #e0af68; }
+  .green { color: #9ece6a; }
+  .cyan { color: #7dcfff; }
+  .magenta { color: #bb9af7; }
+  .dim { color: #565f89; }
+  .tagline {
+    margin-top: 44px;
+    font-size: 24px;
+    color: #7f88b3;
+  }
+</style>
+</head>
+<body>
+  <div class="title">cc-footprint</div>
+  <div class="subtitle">See and shrink each Claude Code session's footprint</div>
+
+  <div class="statusline"><span class="cyan">Claude</span> 310M/<span class="dim">1.3G</span> <span class="sep">│</span> Ctx <span class="red">▊▊▊▊▊▊▊▊▊</span><span class="dim">░</span> 92% <span class="yellow">↑83k</span> <span class="dim">(shell 31%)</span> <span class="sep">│</span> <span class="green">5h</span> <span class="green">▊▊</span><span class="dim">░░░░░░░░</span> <span class="green">22%</span> <span class="dim">5m</span> <span class="sep">│</span> <span class="magenta">Opus 5.5</span> <span class="dim">· medium</span></div>
+
+  <div class="tagline">What fills the context. Which session holds the RAM.</div>
+</body>
+</html>

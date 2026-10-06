@@ -1,0 +1,73 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    # The process-tree and collector logic, on each supported platform
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test
+        working-directory: monitor
+
+  linux:
+    # Install, measure a stand-in session, render the statusline, uninstall
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bash test/smoke-linux.sh
+
+  linux-systemd:
+    # The same run with the monitor as a systemd user service, which is how
+    # install.sh sets it up on a desktop or a server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Start a systemd user session for the runner
+        run: |
+          sudo loginctl enable-linger "$USER"
+          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
+          for _ in $(seq 1 40); do
+            [ -S "/run/user/$(id -u)/bus" ] && break
+            sleep 0.5
+          done
+      - run: SMOKE_SERVICE=1 bash test/smoke-linux.sh
+
+  macos:
+    # The same check on macOS: the ps collector, /bin/bash 3.2 for the
+    # statusline, the monitor started directly
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bash test/smoke-linux.sh
+
+  macos-service:
+    # ...and as a launchd agent, which is how install.sh sets it up on a Mac
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: SMOKE_SERVICE=1 bash test/smoke-linux.sh

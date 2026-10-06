@@ -1,0 +1,8 @@
+node_modules/
+
+# Laid by Claude Code when the plugin is loaded from this folder
+plugin/.claude-plugin/types/
+plugin/tsconfig.json
+
+# Python bytecode from running scripts/
+__pycache__/
