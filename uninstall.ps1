@@ -105,8 +105,13 @@ if (Test-Path $configDir) {
     Write-Host "  No config dir found" -ForegroundColor DarkGray
 }
 
-# Clean up temp caches
-Remove-Item "/tmp/claude-sl-*" -Force -ErrorAction SilentlyContinue 2>$null
+# The statusline's memory cache, one file per session. It writes to /tmp,
+# which under Git Bash is %TEMP%
+$caches = @(Get-ChildItem (Join-Path $env:TEMP "claude-sl-*") -ErrorAction SilentlyContinue)
+if ($caches) {
+    $caches | Remove-Item -Force -ErrorAction SilentlyContinue
+    Write-Host "  Removed $($caches.Count) statusline cache file(s)" -ForegroundColor Green
+}
 
 # ── Remove the Claude Code plugin ────────────────────────────────
 Write-Host "[6/6] Removing the Claude Code plugin..." -ForegroundColor Yellow
@@ -120,8 +125,18 @@ if (Get-Command claude -ErrorAction SilentlyContinue) {
     Write-Host "  claude command not found - if the plugin is installed, remove it with:" -ForegroundColor DarkGray
     Write-Host "    claude plugin uninstall cc-footprint@cc-footprint" -ForegroundColor DarkGray
 }
+# Claude Code keeps a copy of every installed version under its cache, keyed
+# by marketplace name; uninstalling does not drop them
+$pluginCache = Join-Path $claudeDir "plugins\cache\cc-footprint"
+if (Test-Path $pluginCache) {
+    Remove-Item $pluginCache -Recurse -Force
+    Write-Host "  Removed the plugin cache" -ForegroundColor Green
+}
 
 Write-Host ""
 Write-Host "  Uninstall complete!" -ForegroundColor Green
 Write-Host "  Note: The project files remain in this directory. Delete manually if no longer needed." -ForegroundColor DarkGray
 Write-Host ""
+# Without this the script's exit code is that of the last external command,
+# e.g. a "marketplace remove" of an entry that was not there
+exit 0

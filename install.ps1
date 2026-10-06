@@ -243,3 +243,6 @@ if ($browserApplied) {
 Write-Host ""
 Write-Host "  To uninstall: .\uninstall.ps1" -ForegroundColor DarkGray
 Write-Host ""
+# Real failures exit 1 above; a warning from an optional step must not
+# leave the exit code of that external command behind
+exit 0

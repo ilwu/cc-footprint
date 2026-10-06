@@ -116,7 +116,7 @@ cd cc-footprint
 ./uninstall.sh      # Linux、macOS
 ```
 
-會移除開機啟動、本工具的 statusline 和 `statusLine` 設定、plugin 和它的 marketplace 登記、有標記的全域設定，以及設定目錄。不是本工具裝的 statusline 不會動；安裝前的設定若有備份，在 `settings.json.bak`。專案資料夾留著，要刪自行處理。
+會移除開機啟動、本工具的 statusline、`statusLine` 設定和每個 session 的快取檔、plugin 連同 marketplace 登記和快取副本、有標記的全域設定，以及設定目錄。不是本工具裝的 statusline 不會動；安裝前的設定若有備份，在 `settings.json.bak`。專案資料夾留著，要刪自行處理。
 
 ## 然後怎麼降下來
 

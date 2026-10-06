@@ -116,7 +116,7 @@ To have only the plugin on a machine without the clone, inside Claude Code:
 ./uninstall.sh      # Linux, macOS
 ```
 
-Removes the start at login, this tool's statusline and its `statusLine` setting, the plugin and its marketplace registration, the marked global setting, and the config directory. A statusline this tool did not install is left alone; if a setting was backed up at install time it is in `settings.json.bak`. The project folder stays; delete it yourself.
+Removes the start at login, this tool's statusline, its `statusLine` setting and its per-session cache files, the plugin with its marketplace registration and cached copies, the marked global setting, and the config directory. A statusline this tool did not install is left alone; if a setting was backed up at install time it is in `settings.json.bak`. The project folder stays; delete it yourself.
 
 ## Then shrink it
 

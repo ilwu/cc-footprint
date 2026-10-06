@@ -96,6 +96,11 @@ if command -v claude >/dev/null 2>&1; then
 else
   note "claude command not found - if the plugin is installed: claude plugin uninstall cc-footprint@cc-footprint"
 fi
+# Claude Code keeps a copy of every installed version under its cache, keyed
+# by marketplace name; uninstalling does not drop them
+if [[ -d "$claude_dir/plugins/cache/cc-footprint" ]]; then
+  rm -rf "$claude_dir/plugins/cache/cc-footprint"; ok "Removed the plugin cache"
+fi
 
 printf '\n  \033[32mUninstall complete!\033[0m\n'
 note "The project files remain in this directory. Delete them yourself if you no longer need them."
