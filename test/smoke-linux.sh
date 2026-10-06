@@ -75,8 +75,9 @@ EOF
 # A setting of the person's own, to see that the installer keeps the rest
 printf '{\n  "theme": "dark",\n  "statusLine": { "type": "command", "command": "my-own.sh" }\n}\n' > "$HOME/.claude/settings.json"
 
-# --no-plugin: the plugin registry is Claude Code's, not under test here
-bash "$root/install.sh" --no-plugin > "$HOME/install.log" 2>&1 || { cat "$HOME/install.log"; fail "install.sh exited $?"; }
+# --no-plugin: the plugin registry is Claude Code's, not under test here.
+# Run the way the README says, so a lost executable bit fails here
+"$root/install.sh" --no-plugin > "$HOME/install.log" 2>&1 || { rc=$?; cat "$HOME/install.log"; fail "install.sh exited $rc"; }
 grep -q "Monitor running" "$HOME/install.log" || { cat "$HOME/install.log"; fail "the monitor did not come up"; }
 pass "install.sh ran and the monitor answers"
 
@@ -149,7 +150,7 @@ line="$(printf '{"session_id":"%s"}' "$sid" | sl | strip)"
 [[ "$line" != *"Claude "* ]] || fail "an item turned off in config.json is still shown"
 pass "editing config.json turns an item off"
 
-bash "$root/uninstall.sh" > "$HOME/uninstall.log" 2>&1 || { cat "$HOME/uninstall.log"; fail "uninstall.sh exited $?"; }
+"$root/uninstall.sh" > "$HOME/uninstall.log" 2>&1 || { rc=$?; cat "$HOME/uninstall.log"; fail "uninstall.sh exited $rc"; }
 [[ ! -e "$HOME/.claude/statusline.sh" ]] || fail "statusline.sh is still there"
 [[ ! -d "$HOME/.cc-footprint" ]] || fail "the config dir is still there"
 grep -q statusLine "$HOME/.claude/settings.json" && fail "statusLine is still in settings.json"
