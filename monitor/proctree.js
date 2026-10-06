@@ -22,7 +22,14 @@ function isCli(name) {
   return name === 'claude.exe' || name === 'claude';
 }
 
-function measure(procs, sessionPids, now) {
+// A session's file dates its start a few seconds after its process began.
+// A process more than this much younger than that date is not the session:
+// the file was left behind and the pid has gone to something else.
+const PID_REUSE_SLACK_MS = 60000;
+
+// sessionAges: pid -> how long ago, in ms, the session file of that pid says
+// its session started (undefined where the file does not say)
+function measure(procs, sessionAges, now) {
   const byPid = new Map();
   const kids = new Map();
   for (const p of procs) {
@@ -38,7 +45,12 @@ function measure(procs, sessionPids, now) {
 
   // A session whose CLI was installed through npm runs as node, so the
   // session files count as much as the name.
-  const roots = procs.filter(p => isCli(p.name) || sessionPids.has(p.pid));
+  const isSession = p => {
+    if (!sessionAges.has(p.pid)) return false;
+    const age = sessionAges.get(p.pid);
+    return age === undefined || now - p.born + PID_REUSE_SLACK_MS >= age;
+  };
+  const roots = procs.filter(p => isCli(p.name) || isSession(p));
   const rootPids = new Set(roots.map(p => p.pid));
   const owned = new Set(); // every pid inside some root's tree
   const sessions = new Map();

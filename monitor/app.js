@@ -46,7 +46,9 @@ let config = {};
 function loadConfig() {
   try {
     if (fs.existsSync(CONFIG_FILE)) {
-      config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      const saved = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      // A file holding null or a list is as good as one that does not parse
+      if (saved && typeof saved === 'object' && !Array.isArray(saved)) config = saved;
     }
   } catch {}
   // Apply defaults for missing items
@@ -132,6 +134,7 @@ function collect() {
   }
 
   const pids = new Set(sessionPids.values());
+  const started = new Map(sessionStart);
   collector.collect(pids, (err, seen) => {
     if (err) {
       console.error('[collect] failed:', err.message);
@@ -141,7 +144,11 @@ function collect() {
     if (!seen.table.length) return;
 
     const now = Date.now();
-    const measured = proctree.measure(seen.table, pids, seen.clock);
+    // How long ago each session on file started: proctree tells by it a
+    // session from a process that was handed the pid of one that is gone
+    const ages = new Map();
+    for (const pid of pids) ages.set(pid, started.has(pid) ? now - started.get(pid) : undefined);
+    const measured = proctree.measure(seen.table, ages, seen.clock);
     store.clear();
     for (const [pid, r] of measured.sessions) store.set(pid, { ...r, updatedAt: now });
     // A width that could not be read this time keeps its last value
@@ -164,20 +171,27 @@ function collect() {
 const SESSIONS_DIR = path.join(process.env.USERPROFILE || process.env.HOME, '.claude', 'sessions');
 const sessionPids = new Map(); // sessionId -> pid
 const sessionInfo = new Map(); // sessionId -> { cwd, name }
+const sessionStart = new Map(); // pid -> when its file says the session started (epoch ms)
 
 function scanSessions() {
   sessionPids.clear();
   sessionInfo.clear();
+  sessionStart.clear();
   let files;
   try { files = fs.readdirSync(SESSIONS_DIR); } catch { return; }
   for (const f of files) {
     if (!/^\d+\.json$/.test(f)) continue;
     try {
       const s = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'));
-      if (s.sessionId && s.pid) {
-        sessionPids.set(s.sessionId, s.pid);
-        sessionInfo.set(s.sessionId, { cwd: s.cwd || '', name: s.name || '' });
-      }
+      if (!s.sessionId || !s.pid) continue;
+      const startedAt = typeof s.startedAt === 'number' ? s.startedAt : undefined;
+      if (startedAt !== undefined) sessionStart.set(s.pid, startedAt);
+      // A session that was killed leaves its file behind. Should the same
+      // id be in two files, the later start is the process that is running.
+      const known = sessionPids.get(s.sessionId);
+      if (known !== undefined && (sessionStart.get(known) || 0) > (startedAt || 0)) continue;
+      sessionPids.set(s.sessionId, s.pid);
+      sessionInfo.set(s.sessionId, { cwd: s.cwd || '', name: s.name || '' });
     } catch {}
   }
 }
@@ -261,7 +275,7 @@ function processLine(st, line) {
     if (m.mcp) st.mcp += w - m.w;
     m.w = w;
     for (const c of msg.content || []) {
-      if (c.type === 'tool_use' && c.name.startsWith('mcp__')) st.mcpIds.add(c.id);
+      if (c.type === 'tool_use' && typeof c.name === 'string' && c.name.startsWith('mcp__')) st.mcpIds.add(c.id);
     }
   } else if (j.type === 'user' && Array.isArray(msg.content)) {
     for (const c of msg.content) {
@@ -289,7 +303,8 @@ function tailTranscript(s, file) {
     const end = data.lastIndexOf(10) + 1; // only complete lines
     st.rest = data.subarray(end);
     for (const line of data.toString('utf8', 0, end).split('\n')) {
-      if (line) processLine(st, line);
+      // One row of an unforeseen shape costs that row, not the ones after it
+      if (line) try { processLine(st, line); } catch {}
     }
   } catch {
   } finally {
@@ -354,8 +369,30 @@ function statusFor(pid) {
   };
 }
 
+// A page in a browser can reach this port by pointing a name of its own at
+// 127.0.0.1 (DNS rebinding), and would read every session's name and
+// folder. Its requests carry that name as Host, so only our own are
+// answered; "l" is what statusline.sh sends, the shortest that will do.
+const HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`, 'l']);
+
 const server = http.createServer((req, res) => {
+  try {
+    answer(req, res);
+  } catch (e) {
+    // An odd request or file costs that one answer, not the monitor
+    console.error('[http]', req.url, e.message);
+    if (!res.headersSent) res.writeHead(500);
+    res.end('{}');
+  }
+});
+
+function answer(req, res) {
   res.setHeader('Content-Type', 'application/json');
+  const host = req.headers.host;
+  if (host !== undefined && !HOSTS.has(host.toLowerCase())) {
+    res.writeHead(403);
+    return res.end('{}');
+  }
 
   // GET /status — all sessions
   if (req.url === '/status') {
@@ -425,7 +462,7 @@ const server = http.createServer((req, res) => {
 
   res.writeHead(404);
   res.end('{}');
-});
+}
 
 // ── System Tray ──────────────────────────────────────────────────────
 let systray = null;

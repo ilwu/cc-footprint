@@ -256,8 +256,9 @@ fi
 if has ctx; then
   bar "${ctx:-0}"
   ctx_c="Ctx ${BAR} ${ctx:-?}%"; ctx_p="Ctx ########## ${ctx:-?}%"
-  # What this turn has added to the context so far (↓ after a compaction);
-  # yellow once one turn takes 5% of the window
+  # What this turn has added to the context so far (↓ when it has shrunk
+  # instead; a compaction starts the count again); yellow once one turn
+  # takes 5% of the window
   if has ctx_grow && [[ -n "$ctx_turn" && "$ctx_turn" != "0" ]]; then
     if ((ctx_turn > 0)); then tok "$ctx_turn"; grow="↑$TOK"; else tok "$((-ctx_turn))"; grow="↓$TOK"; fi
     if ((${ctx_win:-0} > 0 && ctx_turn * 20 >= ctx_win)); then gc=$YLW; else gc=$DIM; fi
@@ -283,9 +284,9 @@ if has five_hour && [[ -n "$five" ]]; then
   if has resets; then left "$five_reset"; [[ -n "$LEFT" ]] && { lim_c+=" ${DIM}${LEFT}${R}"; lim_p+=" ${LEFT}"; }; fi
   add_item "$lim_c" "$lim_p"
 fi
-if has week; then
-  bar "${week:-0}"
-  lim_c="${PC}Week${R} ${BAR} ${PC}${week:-?}%${R}"; lim_p="Week ########## ${week:-?}%"
+if has week && [[ -n "$week" ]]; then
+  bar "$week"
+  lim_c="${PC}Week${R} ${BAR} ${PC}${week}%${R}"; lim_p="Week ########## ${week}%"
   if has resets; then left "$week_reset"; [[ -n "$LEFT" ]] && { lim_c+=" ${DIM}${LEFT}${R}"; lim_p+=" ${LEFT}"; }; fi
   add_item "$lim_c" "$lim_p"
 fi

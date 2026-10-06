@@ -60,9 +60,11 @@ if (Test-Path $statuslineFile) {
     }
 }
 
-# Node edits the JSON so key order and formatting survive
+# Node edits the JSON so key order and formatting survive. Without node
+# (uninstalled first, say) the two files it would edit are left as they are.
+$hasNode = [bool](Get-Command node -ErrorAction SilentlyContinue)
 $settingsFile = Join-Path $claudeDir "settings.json"
-if (Test-Path $settingsFile) {
+if ($hasNode -and (Test-Path $settingsFile)) {
     $result = node (Join-Path $scriptDir "scripts\statusline-setting.js") unset $settingsFile ($statuslineFile -replace '\\', '/')
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  WARNING: could not read $settingsFile - left untouched" -ForegroundColor Yellow
@@ -86,20 +88,9 @@ if ((Test-Path $agentFile) -and
 }
 
 $claudeMd = Join-Path $claudeDir "CLAUDE.md"
-if (Test-Path $claudeMd) {
-    $md = [IO.File]::ReadAllText($claudeMd)
-    $ruleStart = "<!-- cc-footprint:browser-agent:start -->"
-    $ruleEnd = "<!-- cc-footprint:browser-agent:end -->"
-    $s = $md.IndexOf($ruleStart)
-    $e = $md.IndexOf($ruleEnd)
-    if ($s -ge 0 -and $e -gt $s) {
-        $md = ($md.Substring(0, $s).TrimEnd() + "`n`n" + $md.Substring($e + $ruleEnd.Length).TrimStart()).Trim()
-        if ($md) {
-            [IO.File]::WriteAllText($claudeMd, $md + "`n", (New-Object System.Text.UTF8Encoding($false)))
-        } else {
-            # The file held nothing but our rule
-            Remove-Item $claudeMd -Force
-        }
+if ($hasNode -and (Test-Path $claudeMd)) {
+    $result = node (Join-Path $scriptDir "scripts\remove-global-rule.js") $claudeMd
+    if ($result -eq "removed") {
         Write-Host "  Removed browser rule from CLAUDE.md" -ForegroundColor Green
     }
 }

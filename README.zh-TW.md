@@ -155,11 +155,11 @@ cd cc-footprint
 |------|------|----------|------|
 | **Context 與用量** | | | |
 | Context Window | Context 使用率 % + 進度條 | 快滿時會自動壓縮、前面的細節可能遺失；大改動前先 `/compact` 或開新 session。Context 越長，每次請求也越貴 | 開 |
-| Context: Growth This Turn | 接在 `Ctx` 後面的 `↑15k` — 這一輪到目前為止加進 context 的 token（壓縮後是 `↓`）；單一輪吃掉視窗 5% 以上會變黃 | 當下就看出哪一步很貴，不用等到 90% 才發現 | 開 |
+| Context: Growth This Turn | 接在 `Ctx` 後面的 `↑15k` — 這一輪到目前為止加進 context 的 token（反而變小時是 `↓`；壓縮後重新算起）；單一輪吃掉視窗 5% 以上會變黃 | 當下就看出哪一步很貴，不用等到 90% 才發現 | 開 |
 | Context: Top Source | 接在 `Ctx` 後面的 `(files 29%)` — 最大的來源和佔比：`output`（Claude 的回覆和工具呼叫）、`think`、`files`、`shell`、`search`、`web`、`agents`、`prompts`、`summary`（壓縮之後），或某個 MCP server 的名字 | 知道該改什麼，見[然後怎麼降下來](#然後怎麼降下來) | 關 |
 | MCP Usage Share | `MCP$` — 本 session 的費用中，花在「用到 MCP 工具結果的請求」上的比例（含子代理）；還沒用過 MCP 工具時是 0% | Ctx 漲得很快時，提醒你可能是花太多在瀏覽器操作上。比例高就把瀏覽器工作交給子代理，套用後也用它確認有沒有降 | 開 |
 | 5h Usage | 5 小時用量上限 %（訂閱方案；Claude Code 沒提供時自動隱藏） | 快撞到上限前，先把重要的工作做完，暫停不急的 session | 開 |
-| Weekly Usage | 7 天用量上限 % | 安排這週剩下的額度；用得太快就把大任務延後，或改用較便宜的模型 | 開 |
+| Weekly Usage | 7 天用量上限 %（和 5 小時的一樣，沒提供時自動隱藏） | 安排這週剩下的額度；用得太快就把大任務延後，或改用較便宜的模型 | 開 |
 | Limit Reset Countdown | 接在 `5h` 和 `Week` 後面，距離額度重置還有多久（`2h13m`、`4d21h`） | 決定要等重置，還是繼續做 | 開 |
 | Session Cost | 累計花費（美金） | API 計費時掌握單一任務花了多少；訂閱方案下可用來比較不同做法的成本 | 關 |
 | **記憶體** | | | |

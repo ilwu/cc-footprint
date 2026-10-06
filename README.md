@@ -155,11 +155,11 @@ Watch `MCP$` for the effect. To change the subagent's model, edit `model:` in `b
 |------|-------|---------------|---------|
 | **Context and usage** | | | |
 | Context Window | Context usage % with a bar | Near full, auto-compaction kicks in and earlier details may be lost; `/compact` or a new session before a large change. A longer context also makes every request cost more | On |
-| Context: Growth This Turn | `↑15k` after `Ctx` — the tokens this turn has added to the context so far (`↓` after a compaction); yellow when one turn takes 5% of the window or more | See which step was expensive as it happens, not at 90% | On |
+| Context: Growth This Turn | `↑15k` after `Ctx` — the tokens this turn has added to the context so far (`↓` when it has shrunk instead; a compaction starts the count again); yellow when one turn takes 5% of the window or more | See which step was expensive as it happens, not at 90% | On |
 | Context: Top Source | `(files 29%)` after `Ctx` — the largest source and its share: `output` (Claude's replies and tool calls), `think`, `files`, `shell`, `search`, `web`, `agents`, `prompts`, `summary` (after a compaction), or an MCP server's name | Know what to change; see [Then shrink it](#then-shrink-it) | Off |
 | MCP Usage Share | `MCP$` — the share of this session's spend that went to requests using MCP tool results (subagents included); 0% until an MCP tool is used | When `Ctx` grows fast, a reminder that browser work may be the cause. High: hand browser work to a subagent, and watch it again after | On |
 | 5h Usage | 5-hour limit % (subscription plans; hidden when Claude Code does not report it) | Finish what matters before the limit, pause the sessions that can wait | On |
-| Weekly Usage | 7-day limit % | Plan the week's remaining allowance; going fast, postpone the big tasks or use a cheaper model | On |
+| Weekly Usage | 7-day limit % (hidden like the 5-hour one) | Plan the week's remaining allowance; going fast, postpone the big tasks or use a cheaper model | On |
 | Limit Reset Countdown | After `5h` and `Week`, the time until each limit resets (`2h13m`, `4d21h`) | Decide whether to wait for the reset or carry on | On |
 | Session Cost | Running cost (USD) | On API billing, what one task costs; on a subscription, compare the cost of different approaches | Off |
 | **Memory** | | | |

@@ -64,7 +64,9 @@ node -e '
 session_pid=$!
 
 mkdir -p "$HOME/.claude/sessions" "$HOME/.claude/projects/-work-api"
-printf '{"pid":%s,"sessionId":"%s","cwd":"/work/api","name":"smoke"}\n' "$session_pid" "$sid" \
+# startedAt as Claude Code writes it, a moment after the process began: the
+# monitor holds a process younger than its session file to be another one
+printf '{"pid":%s,"sessionId":"%s","cwd":"/work/api","name":"smoke","startedAt":%s}\n' "$session_pid" "$sid" "$(( $(date +%s) * 1000 ))" \
   > "$HOME/.claude/sessions/$session_pid.json"
 # Two responses: the context grows from 50k to 62k, 2k of it the first answer
 cat > "$HOME/.claude/projects/-work-api/$sid.jsonl" <<EOF

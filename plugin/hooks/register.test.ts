@@ -259,3 +259,54 @@ test('an open pane reads again on a timer; /footprint again closes it and stops 
   await clock.advance(120_000)
   expect(reads).toBe(3)
 })
+
+test('/footprint answers in one line when the session cannot be read', async ($, on) => {
+  mock.clock(on)
+  on('session.id', () => ({ value: 'abc' }))
+  on('session.usage', () => {
+    throw new Error('no usage')
+  })
+
+  const said = await $.command.run({
+    command: 'footprint',
+    args: '',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: true, columns: 200 },
+  })
+
+  expect(said.text).toBe('Footprint could not read this session.')
+})
+
+test('figures of an unforeseen shape leave the pane one line and the way to read again', async ($, on) => {
+  mock.clock(on)
+  on('session.id', () => ({ value: 'abc' }))
+  on('session.usage', () => ({
+    value: { startedAt: 0, context: { tokens: 120_000, window: 200_000, percent: 60 }, rateLimits: [] },
+  }))
+  on('http.fetch', (_, e) => {
+    // A session with neither a name nor a folder to call it by
+    const body = e.url.endsWith('/sessions') ? { sessions: [{ session: 'abc', pid: 1, mem: 1 }], claude_total: 1 } : null
+
+    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
+  })
+  on('turn.complete', () => ({ text: '' }))
+  await $.turn.complete({ answer: 'done', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+
+  const ui = await $.ui.mount({
+    plugin: 'cc-footprint',
+    surface: 'terminal',
+    component: 'Pane',
+    requestId: 'footprint',
+    props: {
+      title: 'Footprint',
+      isFocused: false,
+      bodyColumns: 60,
+      placement: 'dock',
+      scroll: { offset: 0, bodyRows: 30 },
+      view: {},
+    },
+  })
+  expect(await ui.find({ type: 'Text', text: /could not be drawn/ })).toBeDefined()
+  expect(await ui.find({ key: 'refresh' })).toBeDefined()
+  await ui.unmount()
+})
