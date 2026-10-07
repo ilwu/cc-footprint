@@ -8,9 +8,10 @@
 //
 //   node optional.js <this clone> <~/.claude>
 //
-// Prints plain ASCII lines (Windows PowerShell 5.1 reads node's output in
-// the system code page); a line starting with "#" is a heading, which the
-// installer colors.
+// Prints UTF-8 lines (install.ps1 reads them through Invoke-Node, as Windows
+// PowerShell 5.1 would otherwise take them in the system code page and
+// garble a path that is not ASCII); a line starting with "#" is a heading,
+// which the installer colors.
 
 const fs = require('fs');
 const path = require('path');

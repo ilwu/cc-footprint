@@ -18,7 +18,6 @@ note() { printf '  \033[90m%s\033[0m\n' "$*"; }
 
 is_mac()      { [[ "$(uname -s)" == Darwin ]]; }
 has_systemd() { [[ -z "${CC_FOOTPRINT_NO_SERVICE:-}" ]] && ! is_mac && command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; }
-is_ours()     { head -n 5 "$1" 2>/dev/null | grep -q 'cc-footprint'; }
 # Ends a monitor started from this folder; fails when none was running.
 # Reads /proc itself, since a minimal system has no pkill.
 kill_monitor() {
@@ -57,9 +56,15 @@ fi
 # ── Remove statusline config ──────────────────────────────────────
 step "[2/5] Removing statusline config..."
 statusline="$claude_dir/statusline.sh"
-if [[ -f "$statusline" ]]; then
-  if is_ours "$statusline"; then rm -f "$statusline"; ok "Removed statusline.sh"
-  else note "statusline.sh is not ours - left untouched"; fi
+# Only what is ours, as the installer decided it (scripts/statusline-file.js);
+# without node the file is left, as the setting that runs it is
+if command -v node >/dev/null 2>&1; then
+  case "$(node "$dir/scripts/statusline-file.js" remove "$statusline")" in
+    removed)  ok "Removed statusline.sh" ;;
+    not-ours) note "statusline.sh is not ours - left untouched" ;;
+  esac
+else
+  note "node not found - statusline.sh and the statusLine setting are left as they are"
 fi
 settings="$claude_dir/settings.json"
 if [[ -f "$settings" ]] && command -v node >/dev/null 2>&1; then

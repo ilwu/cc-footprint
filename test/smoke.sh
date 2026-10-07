@@ -117,7 +117,9 @@ cat > "$HOME/.claude/projects/-work-api/$sid.jsonl" <<EOF
 {"type":"assistant","message":{"id":"m3","model":"claude-opus","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":68000,"output_tokens":50}}}
 EOF
 
-# A setting of the person's own, to see that the installer keeps the rest
+# A statusline and a setting of the person's own, to see that the installer
+# backs them up and keeps the rest
+printf '#!/bin/bash\necho mine\n' > "$HOME/.claude/statusline.sh"
 printf '{\n  "theme": "dark",\n  "statusLine": { "type": "command", "command": "my-own.sh" }\n}\n' > "$HOME/.claude/settings.json"
 
 install > "$HOME/install.log" 2>&1 || { rc=$?; cat "$HOME/install.log"; fail "the installer exited $rc"; }
@@ -151,7 +153,20 @@ node -e '
 ' "$HOME/.claude/settings.json"
 node "$root/scripts/statusline-setting.js" set "$HOME/.claude/settings.json" "$home_cmd/.claude/statusline.sh" >/dev/null
 grep -q 'my-own.sh' "$HOME/.claude/settings.json.bak" || fail "a second install overwrote the first backup"
-pass "statusLine set, the rest of settings.json kept, the old one backed up and kept"
+grep -q 'echo mine' "$HOME/.claude/statusline.sh.bak" || fail "the person's own statusline.sh was not backed up"
+grep -q 'cc-footprint' "$HOME/.claude/statusline.sh" || fail "statusline.sh is not ours after install"
+# Another of their own put there since, and installed over again: the first
+# backup stays
+printf '#!/bin/bash\necho another\n' > "$HOME/new-statusline.sh"
+cp "$HOME/new-statusline.sh" "$HOME/.claude/statusline.sh.bak.test"
+said="$(node "$root/scripts/statusline-file.js" install "$root/statusline/statusline.sh" "$HOME/.claude/statusline.sh.bak.test")"
+[[ "$said" == backed-up ]] || fail "a statusline of their own was not backed up: $said"
+printf '#!/bin/bash\necho third\n' > "$HOME/.claude/statusline.sh.bak.test"
+said="$(node "$root/scripts/statusline-file.js" install "$root/statusline/statusline.sh" "$HOME/.claude/statusline.sh.bak.test")"
+[[ "$said" == kept-backup ]] || fail "a second backup replaced the first: $said"
+grep -q 'echo another' "$HOME/.claude/statusline.sh.bak.test.bak" || fail "the first backup was lost"
+rm -f "$HOME/.claude/statusline.sh.bak.test" "$HOME/.claude/statusline.sh.bak.test.bak"
+pass "statusLine and statusline.sh set, the rest kept, the person's own backed up and the first backup kept"
 
 status="$(get "/session/$sid")"
 mem="$(field "$status" mem)"; self="$(field "$status" self)"; procs="$(field "$status" procs)"
@@ -230,6 +245,7 @@ pass "editing config.json turns an item off"
 
 uninstall > "$HOME/uninstall.log" 2>&1 || { rc=$?; cat "$HOME/uninstall.log"; fail "the uninstaller exited $rc"; }
 [[ ! -e "$HOME/.claude/statusline.sh" ]] || fail "statusline.sh is still there"
+grep -q 'echo mine' "$HOME/.claude/statusline.sh.bak" || fail "uninstall lost the backup of the person's own statusline.sh"
 [[ ! -d "$HOME/.cc-footprint" ]] || fail "the config dir is still there"
 grep -q statusLine "$HOME/.claude/settings.json" && fail "statusLine is still in settings.json"
 grep -q '"theme": "dark"' "$HOME/.claude/settings.json" || fail "uninstall lost the person's other settings"

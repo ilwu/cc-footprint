@@ -14,7 +14,8 @@
       because they change ~/.claude/ for every project)
     Never silently replaces the user's own statusline: a foreign
     statusline.sh or statusLine setting is backed up to *.bak first.
-    Safe to re-run (idempotent): it stops any running monitor on port 19823,
+    Safe to re-run (idempotent): it stops the running monitor (only ours: a
+    different program on port 19823 is named and the install stops there),
     refreshes installed files, and starts the new build.
 .PARAMETER NoPlugin
     Do not install the Claude Code plugin.
@@ -29,6 +30,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Stop-Monitor and Invoke-Node, shared with the other installer
+. (Join-Path $scriptDir "scripts\common.ps1")
 $monitorDir = Join-Path $scriptDir "monitor"
 $statuslineDir = Join-Path $scriptDir "statusline"
 $claudeDir = Join-Path $env:USERPROFILE ".claude"
@@ -42,22 +45,6 @@ function Invoke-Native([scriptblock]$Command) {
     & $Command 2>&1 | ForEach-Object { "$_" }
 }
 
-# Stops the cc-footprint monitor on port 19823, and nothing else: another
-# program there is named and left alone. Returns what it found.
-function Stop-Monitor {
-    $owners = @(Get-NetTCPConnection -LocalPort 19823 -State Listen -ErrorAction SilentlyContinue |
-        Where-Object { $_.OwningProcess -ne 0 } | Select-Object -ExpandProperty OwningProcess -Unique)
-    if (-not $owners) { return "none" }
-    foreach ($id in $owners) {
-        $p = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
-        if ($p -and $p.CommandLine -match 'monitor[\\/]app\.js') {
-            Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
-        } else {
-            return "other:$(if ($p) { $p.Name } else { $id })"
-        }
-    }
-    return "stopped"
-}
 
 Write-Host ""
 Write-Host "  cc-footprint - Installer" -ForegroundColor Cyan
@@ -134,7 +121,7 @@ $statuslineSrc = Join-Path $statuslineDir "statusline.sh"
 $statuslineDst = Join-Path $claudeDir "statusline.sh"
 
 # A statusline of the person's own is backed up first (scripts/)
-$copied = node (Join-Path $scriptDir "scripts\statusline-file.js") install $statuslineSrc $statuslineDst
+$copied = Invoke-Node (Join-Path $scriptDir "scripts\statusline-file.js") install $statuslineSrc $statuslineDst
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  ERROR: could not copy statusline.sh to $statuslineDst" -ForegroundColor Red
     exit 1
@@ -150,7 +137,7 @@ Write-Host "  Copied statusline.sh -> $statuslineDst" -ForegroundColor Green
 # and formatting survive (ConvertTo-Json reorders keys and re-indents the
 # file); a different statusLine is backed up to settings.json.bak first.
 $settingsFile = Join-Path $claudeDir "settings.json"
-$result = node (Join-Path $scriptDir "scripts\statusline-setting.js") set $settingsFile ($statuslineDst -replace '\\', '/')
+$result = Invoke-Node (Join-Path $scriptDir "scripts\statusline-setting.js") set $settingsFile ($statuslineDst -replace '\\', '/')
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  ERROR: could not update $settingsFile (invalid JSON?) - left untouched" -ForegroundColor Red
     exit 1
@@ -250,7 +237,7 @@ Write-Host "    - Monitor auto-starts on boot"
 # Listed, never applied (scripts/optional.js says why and what); a line
 # starting with "#" is a heading
 Write-Host ""
-foreach ($line in @(node (Join-Path $scriptDir "scripts\optional.js") $scriptDir $claudeDir)) {
+foreach ($line in @(Invoke-Node (Join-Path $scriptDir "scripts\optional.js") $scriptDir $claudeDir)) {
     if ($line.StartsWith("#")) { Write-Host "  $($line.Substring(1))" -ForegroundColor Cyan }
     else { Write-Host "    $line" }
 }

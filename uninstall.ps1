@@ -6,6 +6,8 @@
 
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Stop-Monitor and Invoke-Node, shared with the other installer
+. (Join-Path $scriptDir "scripts\common.ps1")
 $claudeDir = Join-Path $env:USERPROFILE ".claude"
 $configDir = Join-Path $env:USERPROFILE ".cc-footprint"
 
@@ -18,22 +20,6 @@ function Invoke-Native([scriptblock]$Command) {
     & $Command 2>&1 | ForEach-Object { "$_" }
 }
 
-# Stops the cc-footprint monitor on port 19823, and nothing else: another
-# program there is named and left alone. Returns what it found.
-function Stop-Monitor {
-    $owners = @(Get-NetTCPConnection -LocalPort 19823 -State Listen -ErrorAction SilentlyContinue |
-        Where-Object { $_.OwningProcess -ne 0 } | Select-Object -ExpandProperty OwningProcess -Unique)
-    if (-not $owners) { return "none" }
-    foreach ($id in $owners) {
-        $p = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
-        if ($p -and $p.CommandLine -match 'monitor[\\/]app\.js') {
-            Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
-        } else {
-            return "other:$(if ($p) { $p.Name } else { $id })"
-        }
-    }
-    return "stopped"
-}
 
 Write-Host ""
 Write-Host "  cc-footprint - Uninstaller" -ForegroundColor Cyan
@@ -71,24 +57,23 @@ if (Test-Path $shortcutPath) {
 # ── Remove statusline config ────────────────────────────────────
 Write-Host "[3/6] Removing statusline config..." -ForegroundColor Yellow
 
-# Only remove what is ours; a statusline the user set up is left alone
+# Only what is ours; a statusline the person set up is left alone. Node
+# decides, as it did on install (scripts/statusline-file.js); without node
+# the file is left, as the setting that runs it is (below).
 $statuslineFile = Join-Path $claudeDir "statusline.sh"
-if (Test-Path $statuslineFile) {
-    $head = (Get-Content $statuslineFile -TotalCount 5 -Encoding UTF8) -join "`n"
-    if ($head.Contains("cc-footprint")) {
-        Remove-Item $statuslineFile -Force
-        Write-Host "  Removed statusline.sh" -ForegroundColor Green
-    } else {
-        Write-Host "  statusline.sh is not ours - left untouched" -ForegroundColor DarkGray
-    }
+$hasNode = [bool](Get-Command node -ErrorAction SilentlyContinue)
+if ($hasNode) {
+    $removed = Invoke-Node (Join-Path $scriptDir "scripts\statusline-file.js") remove $statuslineFile
+    if ($removed -eq "removed") { Write-Host "  Removed statusline.sh" -ForegroundColor Green }
+    elseif ($removed -eq "not-ours") { Write-Host "  statusline.sh is not ours - left untouched" -ForegroundColor DarkGray }
+} else {
+    Write-Host "  node not found - statusline.sh and the statusLine setting are left as they are" -ForegroundColor Yellow
 }
 
-# Node edits the JSON so key order and formatting survive. Without node
-# (uninstalled first, say) the two files it would edit are left as they are.
-$hasNode = [bool](Get-Command node -ErrorAction SilentlyContinue)
+# Node edits the JSON so key order and formatting survive
 $settingsFile = Join-Path $claudeDir "settings.json"
 if ($hasNode -and (Test-Path $settingsFile)) {
-    $result = node (Join-Path $scriptDir "scripts\statusline-setting.js") unset $settingsFile ($statuslineFile -replace '\\', '/')
+    $result = Invoke-Node (Join-Path $scriptDir "scripts\statusline-setting.js") unset $settingsFile ($statuslineFile -replace '\\', '/')
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  WARNING: could not read $settingsFile - left untouched" -ForegroundColor Yellow
     } elseif ($result -eq "removed") {
@@ -115,7 +100,7 @@ if ((Test-Path $agentFile) -and
 
 $claudeMd = Join-Path $claudeDir "CLAUDE.md"
 if ($hasNode -and (Test-Path $claudeMd)) {
-    $result = node (Join-Path $scriptDir "scripts\remove-global-rule.js") $claudeMd
+    $result = Invoke-Node (Join-Path $scriptDir "scripts\remove-global-rule.js") $claudeMd
     if ($result -eq "removed") {
         Write-Host "  Removed browser rule from CLAUDE.md" -ForegroundColor Green
     }

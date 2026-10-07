@@ -73,6 +73,8 @@ if has_launchd; then
   launchctl bootout "gui/$(id -u)/$agent" >/dev/null 2>&1 || true
 fi
 kill_monitor
+for _ in 1 2 3 4 5 6; do api_up || break; sleep 0.5; done
+api_up && die "port $port is still held after stopping this clone's monitor: another program, or a monitor started some other way. Stop it, then run this again."
 
 # ── Statusline ────────────────────────────────────────────────────
 step "[2/5] Installing statusline..."
