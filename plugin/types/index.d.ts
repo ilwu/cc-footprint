@@ -56,6 +56,8 @@ export type View = {
   /** MCP servers outside every session, largest first. */
   outside: Outside[]
   hasMonitor: boolean
+  /** The language to speak: the tray app's setting, or the last one it gave. */
+  lang: string
 }
 
 declare module 'claude-code' {

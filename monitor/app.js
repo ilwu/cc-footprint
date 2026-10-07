@@ -4,6 +4,7 @@
 // and it answers the statusline and the plugin over HTTP. This file only
 // wires the parts together:
 //   config.js        the items and their on/off settings
+//   i18n.js          the monitor's words in the person's language (i18n/)
 //   sessions.js      session id -> pid, from Claude Code's session files
 //   transcripts.js   context composition, from the transcripts
 //   plugin-state.js  whether our plugin is enabled
@@ -17,6 +18,7 @@ const path = require('path');
 const collector = require('./collectors');
 const proctree = require('./proctree');
 const { createConfig } = require('./config');
+const { createI18n } = require('./i18n');
 const { createSessions } = require('./sessions');
 const { createTranscripts } = require('./transcripts');
 const { createPluginState } = require('./plugin-state');
@@ -46,6 +48,7 @@ const m = {
 };
 
 const config = createConfig(path.join(CONFIG_DIR, 'config.json'));
+const i18n = createI18n();
 const sessions = createSessions(path.join(CLAUDE_DIR, 'sessions'));
 const transcripts = createTranscripts(path.join(CLAUDE_DIR, 'projects'), { stats: m.stats });
 const plugin = createPluginState(path.join(CLAUDE_DIR, 'settings.json'));
@@ -112,10 +115,10 @@ function collectSoon() {
 
 // ── Main ─────────────────────────────────────────────────────────────
 const server = http.createServer(createHandler({
-  port: PORT, m, config, sessions, transcripts, plugin, collectSoon, staleMs: 3 * INTERVAL,
+  port: PORT, m, config, i18n, sessions, transcripts, plugin, collectSoon, staleMs: 3 * INTERVAL,
 }));
 const tray = createTray({
-  config, m, sessions, configDir: CONFIG_DIR,
+  config, i18n, m, sessions, configDir: CONFIG_DIR,
   onExit: () => { server.close(); process.exit(0); },
 });
 

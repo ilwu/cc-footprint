@@ -35,7 +35,7 @@ for (const readme of ['README.md', 'README.zh-TW.md']) {
   test(`${readme} shows the config.json defaults as they are`, () => {
     const block = read(readme).match(/```json\n(\{[\s\S]*?"sys_mem"[\s\S]*?\})\n```/);
     assert.ok(block, 'no config.json block found');
-    assert.deepEqual(JSON.parse(block[1]), Object.fromEntries(ITEMS.map(i => [i.id, i.default])));
+    assert.deepEqual(JSON.parse(block[1]), { ...Object.fromEntries(ITEMS.map(i => [i.id, i.default])), lang: 'auto' });
   });
 }
 

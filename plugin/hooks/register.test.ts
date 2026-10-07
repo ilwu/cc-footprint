@@ -2,6 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import type { View } from '../types'
 import { allot, compactNotice, groupParts, summaryLine, timeLeft, tokens, turnNotice } from './notices'
+import { LANGS, padTo, strings, width } from './strings'
 
 const VIEW: View = {
   at: 0,
@@ -32,6 +33,7 @@ const VIEW: View = {
   memoryTotal: 2_147_483_648,
   outside: [],
   hasMonitor: true,
+  lang: 'en',
 }
 
 test('token counts read short', () => {
@@ -336,4 +338,86 @@ test('figures of an unforeseen shape leave the pane one line and the way to read
   expect(await ui.find({ type: 'Text', text: /could not be drawn/ })).toBeDefined()
   expect(await ui.find({ key: 'refresh' })).toBeDefined()
   await ui.unmount()
+})
+
+test('every language the monitor offers has its words here', () => {
+  expect(LANGS.sort()).toEqual(['en', 'ja', 'ko', 'zh-CN', 'zh-TW'])
+  // One the plugin lacks falls back to English
+  expect(strings('xx').opened).toBe('Footprint pane opened.')
+})
+
+test('wide characters take two columns, so a column of them stays aligned', () => {
+  expect(width('File reads')).toBe(10)
+  expect(width('讀檔')).toBe(4)
+  expect(width('コンテキスト')).toBe(12)
+  expect(width('파일 읽기')).toBe(9)
+  expect(width(padTo('讀檔', 8))).toBe(8)
+})
+
+test('the toasts and the summary speak the language the tray app names', () => {
+  const said = turnNotice(null, { ...VIEW, turn: 30_000, lang: 'zh-TW' })
+  expect(said).toBe('本輪 context +30k（視窗的 15%）')
+  expect(compactNotice({ ...VIEW, tokens: 150_000, lang: 'ja' })).toContain('/compact')
+  expect(summaryLine({ ...VIEW, lang: 'ko' })).toContain('세션 1개')
+})
+
+test('the pane is drawn in the tray app language, its legend aligned by columns', async ($, on) => {
+  mock.clock(on)
+  on('session.id', () => ({ value: 'abc' }))
+  on('session.usage', () => ({
+    value: { startedAt: 0, context: { tokens: 120_000, window: 200_000, percent: 60 }, rateLimits: [] },
+  }))
+  on('http.fetch', (_, e) => {
+    const body = e.url.endsWith('/sessions')
+      ? { sessions: VIEW.sessions, claude_total: VIEW.memoryTotal, lang: 'ja' }
+      : { tokens: 120_000, turn: 4_000, parts: VIEW.parts }
+
+    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
+  })
+  on('turn.complete', () => ({ text: '' }))
+  await $.turn.complete({ answer: 'done', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+
+  const ui = await $.ui.mount({
+    plugin: 'cc-footprint',
+    surface: 'terminal',
+    component: 'Pane',
+    requestId: 'footprint',
+    props: { title: 'Footprint', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
+  })
+  expect(await ui.find({ type: 'Text', text: /コンテキストウィンドウ/ })).toBeDefined()
+  // The legend in Japanese (padTo, tested above, aligns its columns)
+  const files = await ui.find({ type: 'Text', text: /ファイル読み込み/ })
+  const output = await ui.find({ type: 'Text', text: /Claude の出力/ })
+  expect(files).toBeDefined()
+  expect(output).toBeDefined()
+  expect(await ui.find({ key: 'refresh' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('with the tray app gone, the last language it named is kept', async ($, on) => {
+  const kept = new Map<string, unknown>([['lang', 'zh-CN']])
+  on('store.get', (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  on('ui.open', () => ({ value: { isPlaced: false, reason: 'no room' } }))
+  on('session.id', () => ({ value: 'abc' }))
+  on('session.usage', () => ({
+    value: { startedAt: 0, context: { tokens: 120_000, window: 200_000, percent: 60 }, rateLimits: [] },
+  }))
+  on('http.fetch', () => {
+    throw new Error('connection refused')
+  })
+  mock.clock(on)
+
+  const said = await $.command.run({
+    command: 'footprint',
+    args: '',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 80 },
+  })
+  expect(said.text).toContain('上下文 60%')
+  expect(said.text).toContain('cc-footprint 后台程序没有运行')
 })

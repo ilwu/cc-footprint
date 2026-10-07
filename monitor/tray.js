@@ -1,8 +1,9 @@
 'use strict';
 
 // ── System tray (Windows) / menu bar icon (macOS) ────────────────────
-// One switch per item, a status line on top, Exit at the bottom. There is
-// no tray on Linux: the items are chosen by editing config.json.
+// One switch per item, a status line on top, then the Language menu and
+// Exit. There is no tray on Linux: the items and the language are chosen
+// by editing config.json.
 
 const childProcess = require('child_process');
 const fs = require('fs');
@@ -41,22 +42,49 @@ function ownTrayHelper(shipped, configDir) {
   }
 }
 
-// config: see config.js; m: the monitor's state (store); sessions: see
-// sessions.js; onExit: what Exit does after closing the icon.
-function createTray({ config, m, sessions, configDir, onExit }) {
+// config: see config.js; i18n: see i18n.js; m: the monitor's state;
+// sessions: see sessions.js; onExit: what Exit does after closing the icon.
+function createTray({ config, i18n, m, sessions, configDir, onExit }) {
   let systray = null;
+  let lang = null; // the language the menu is drawn in
 
-  const statusItem = { title: 'Collecting...', tooltip: 'Collecting...', checked: false, enabled: false };
-  const toggleItems = config.items.map(item => ({
-    title: item.label,
-    tooltip: `Toggle ${item.label}`,
-    checked: !!config.values[item.id],
-    enabled: true,
-  }));
-  const exitItem = { title: 'Exit', tooltip: 'Exit cc-footprint', checked: false, enabled: true };
+  const statusItem = { title: '', tooltip: '', checked: false, enabled: false };
+  const toggleItems = config.items.map(() => ({ title: '', tooltip: '', checked: false, enabled: true }));
+  // "Language" stays English in every language, so that whoever chose one
+  // they cannot read still finds the way back. Each language is named in
+  // itself.
+  const langChoices = ['auto', ...i18n.codes];
+  const langItems = langChoices.map(() => ({ title: '', tooltip: '', checked: false, enabled: true }));
+  const langMenu = { title: 'Language', tooltip: 'Language', checked: false, enabled: true, items: langItems };
+  const exitItem = { title: '', tooltip: '', checked: false, enabled: true };
 
-  function update() {
-    if (!systray) return;
+  // Every title in the language config.json asks for
+  function label() {
+    lang = i18n.resolve(config.values.lang);
+    const t = (key, vars) => i18n.t(lang, key, vars);
+    config.items.forEach((item, i) => {
+      const title = t('item.' + item.id);
+      toggleItems[i].title = title;
+      toggleItems[i].tooltip = t('toggle', { label: title });
+      toggleItems[i].checked = !!config.values[item.id];
+    });
+    langChoices.forEach((code, i) => {
+      const title = code === 'auto' ? i18n.t(lang, 'lang.auto', { name: i18n.name(i18n.system) }) : i18n.name(code);
+      langItems[i].title = title;
+      langItems[i].tooltip = title;
+      langItems[i].checked = (config.values.lang || 'auto') === code;
+    });
+    exitItem.title = t('exit');
+    exitItem.tooltip = t('exit.tooltip');
+    statusLine();
+  }
+
+  function statusLine() {
+    const t = (key, vars) => i18n.t(lang, key, vars);
+    if (!m.lastMeasuredAt) {
+      statusItem.title = statusItem.tooltip = t('collecting');
+      return;
+    }
     // One short line: the menu is as wide as its widest row. A claude process
     // without a session file is in the total, as in the statusline's, but is
     // no session.
@@ -66,14 +94,30 @@ function createTray({ config, m, sessions, configDir, onExit }) {
       total += d.mem;
       if (pids.has(pid)) count++;
     }
-    const text = count === 0
-      ? 'No active sessions'
-      : `${count} session${count === 1 ? '' : 's'} · ${fmtMem(total)}`;
+    const text = count === 0 ? t('status.none') : t('status.sessions', { n: count, mem: fmtMem(total) });
     statusItem.title = text;
     statusItem.tooltip = text;
+  }
+
+  const send = item => {
     try {
-      systray.sendAction({ type: 'update-item', item: statusItem });
+      systray.sendAction({ type: 'update-item', item });
     } catch {}
+  };
+
+  // Drawn again in place, item by item: update-menu would break the clicks
+  function relabel() {
+    label();
+    for (const item of [statusItem, ...toggleItems, ...langItems, exitItem]) send(item);
+  }
+
+  // After every measurement; config.json edited by hand may have changed
+  // the language too
+  function update() {
+    if (!systray) return;
+    if (i18n.resolve(config.values.lang) !== lang) return relabel();
+    statusLine();
+    send(statusItem);
   }
 
   async function open(SysTray, items, renamed) {
@@ -116,10 +160,16 @@ function createTray({ config, m, sessions, configDir, onExit }) {
         config.values[id] = !config.values[id];
         toggleItems[idx].checked = config.values[id];
         config.save();
-        try {
-          systray.sendAction({ type: 'update-item', item: toggleItems[idx] });
-        } catch {}
+        send(toggleItems[idx]);
         console.log(`[config] ${id} = ${config.values[id]}`);
+        return;
+      }
+      const li = langItems.indexOf(action.item);
+      if (li >= 0) {
+        config.values.lang = langChoices[li];
+        config.save();
+        relabel();
+        console.log(`[config] lang = ${config.values.lang}`);
       }
     });
   }
@@ -137,16 +187,14 @@ function createTray({ config, m, sessions, configDir, onExit }) {
       return;
     }
 
-    for (let i = 0; i < config.items.length; i++) {
-      toggleItems[i].checked = !!config.values[config.items[i].id];
-    }
+    label();
     // The toggles, a separator before each group
     const items = [statusItem];
     config.items.forEach((item, i) => {
       if (i === 0 || item.group !== config.items[i - 1].group) items.push(SysTray.separator);
       items.push(toggleItems[i]);
     });
-    items.push(SysTray.separator, exitItem);
+    items.push(SysTray.separator, langMenu, exitItem);
 
     // Under our own name first; the helper's own name where that cannot run
     for (const renamed of [true, false]) {
@@ -154,7 +202,7 @@ function createTray({ config, m, sessions, configDir, onExit }) {
         await open(SysTray, items, renamed);
         console.log('[tray] ready');
         // The first measurement may have come in while the helper started
-        if (m.lastMeasuredAt) update();
+        update();
         return;
       } catch (e) {
         console.error(`[tray] failed${renamed ? ' under our own name, trying the helper as shipped' : ''}:`, e.message);

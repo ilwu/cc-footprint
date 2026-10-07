@@ -5,7 +5,6 @@ import type { Outside, Part, Session, View } from '../types'
 import {
   NEAR_COMPACT,
   REARM,
-  sessions,
   age,
   allot,
   compactNotice,
@@ -18,6 +17,7 @@ import {
   turnNotice,
 } from './notices'
 import type { TurnBase } from './notices'
+import { padTo, strings, width } from './strings'
 
 // The cc-footprint tray app: it measures each session's process and reads
 // the transcripts, neither of which a hooks module can do itself.
@@ -35,6 +35,7 @@ type MonitorSessions = {
   sessions: Session[]
   claude_total: number
   outside?: Outside[]
+  lang?: string
 }
 
 /** One of the tray app's answers, or null when it is not running. */
@@ -62,6 +63,7 @@ async function snapshot($: EngineInterface): Promise<View> {
   const breakdown = usage.context.breakdown
 
   return {
+    lang: await language($, sessions?.lang),
     at,
     sessionId,
     tokens: usage.context.tokens ?? context?.tokens ?? null,
@@ -79,6 +81,26 @@ async function snapshot($: EngineInterface): Promise<View> {
     memoryTotal: sessions?.claude_total ?? null,
     outside: sessions?.outside ?? [],
     hasMonitor: context !== null || sessions !== null,
+  }
+}
+
+/**
+ * The language to speak. The tray app says which (the plugin has no way to
+ * tell the system's own); while it is down the last one it said is kept,
+ * so that the pane does not turn English, and English before it ever said.
+ */
+async function language($: EngineInterface, said: string | undefined): Promise<string> {
+  try {
+    if (said !== undefined) {
+      await $.store.set('lang', said)
+
+      return said
+    }
+    const kept = await $.store.get('lang')
+
+    return typeof kept === 'string' ? kept : 'en'
+  } catch {
+    return said ?? 'en'
   }
 }
 
@@ -133,7 +155,7 @@ export const register: Register = on => {
         isOpen = false
         await $.ui.close({ id: PANE })
 
-        return { text: 'Footprint pane closed.' }
+        return { text: strings(await language($, undefined)).closed }
       }
       const now = await load($)
       const opened = await $.ui.open({ id: PANE, title: 'Footprint', closeOnEscape: true })
@@ -145,9 +167,9 @@ export const register: Register = on => {
         })
       }
 
-      return { text: opened.isPlaced ? 'Footprint pane opened.' : summaryLine(now) }
+      return { text: opened.isPlaced ? strings(now.lang).opened : summaryLine(now) }
     } catch {
-      return { text: 'Footprint could not read this session.' }
+      return { text: strings(await language($, undefined)).cannotRead }
     }
   })
 
@@ -205,11 +227,10 @@ export const register: Register = on => {
     try {
       if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in done)) {
         const { tokensBefore, tokensAfter } = done
-        const sizes =
-          tokensBefore !== undefined && tokensAfter !== undefined
-            ? `: ${tokens(tokensBefore)} → ${tokens(tokensAfter)}`
-            : ''
-        $.ui.toast(`Context compacted${sizes}`, { timeoutMs: NOTICE_MS })
+        const s = strings(await language($, undefined))
+        const before = tokensBefore === undefined ? null : tokens(tokensBefore)
+        const after = tokensAfter === undefined ? null : tokens(tokensAfter)
+        $.ui.toast(s.compacted(before, after), { timeoutMs: NOTICE_MS })
         hasWarned = false
       }
     } catch {
@@ -221,7 +242,9 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
-    const refresh = <Button key="refresh" label="Refresh" onPress={() => load($)} />
+    // The last language known, for what is drawn before anything is read
+    const said = (await read($, view).catch(() => null))?.lang ?? 'en'
+    const refresh = <Button key="refresh" label={strings(said).refresh} onPress={() => load($)} />
 
     try {
       const now = await read($, view)
@@ -229,26 +252,26 @@ export const register: Register = on => {
       if (now === null) {
         return (
           <Box flexDirection="column">
-            <Text dimColor>Nothing read yet.</Text>
+            <Text dimColor>{strings(said).nothingYet}</Text>
             {refresh}
           </Box>
         )
       }
+      const s = strings(now.lang)
 
       const columns = e.props.bodyColumns ?? e.viewport?.columns ?? 80
       const wide = Math.max(10, Math.min(60, columns))
       const narrow = Math.max(8, Math.min(24, columns - 34))
       const own = now.sessions.find(one => one.session === now.sessionId)
-      const servers = (count: number) => `${count} MCP server${count === 1 ? '' : 's'}`
       // Left behind by a session, or another program's (Chrome's bridge, the
       // desktop app): memory no session of ours is using
       const outsideMem = now.outside.reduce((sum, one) => sum + one.mem, 0)
-      const outsideWidth = now.outside.reduce((most, one) => Math.max(most, one.name.length), 0)
+      const outsideWidth = now.outside.reduce((most, one) => Math.max(most, width(one.name)), 0)
       // What this session's memory is besides the claude process itself
       const children =
         own?.self !== undefined && own.procs !== undefined && own.procs > 1
-          ? `claude ${memory(own.self)} + ${own.procs - 1} child process${own.procs === 2 ? '' : 'es'} ${memory(own.mem - own.self)}` +
-            (own.mcp_count ? `, ${servers(own.mcp_count)} ${memory(own.mcp_mem ?? 0)} of it` : '')
+          ? s.children(memory(own.self), own.procs - 1, memory(own.mem - own.self)) +
+            (own.mcp_count ? s.ofIt(s.servers(own.mcp_count), memory(own.mcp_mem ?? 0)) : '')
           : null
 
       // A ratio against its limit: the filled part in ink, the rest a dim
@@ -269,34 +292,32 @@ export const register: Register = on => {
       const isNear = compactShare(now) >= NEAR_COMPACT
       const notes: string[] = []
       if (now.turn !== null && now.turn !== 0) {
-        notes.push(`${now.turn > 0 ? '↑' : '↓'}${tokens(Math.abs(now.turn))} this turn`)
+        notes.push(s.thisTurn(now.turn > 0 ? '↑' : '↓', tokens(Math.abs(now.turn))))
       }
       if (now.compactAt !== null && now.tokens !== null) {
-        notes.push(`auto-compact at ${tokens(now.compactAt)}, ${tokens(Math.max(0, now.compactAt - now.tokens))} to go`)
+        notes.push(s.compactAt(tokens(now.compactAt), tokens(Math.max(0, now.compactAt - now.tokens))))
       } else if (now.autoCompact === false) {
-        notes.push('auto-compact is off')
+        notes.push(s.compactOff)
       }
 
       // One bar for everything in use, a colour per kind of content; the
       // legend names each colour, largest first, in text ink
-      const groups = groupParts(now.parts)
+      const groups = groupParts(now.parts, s)
       const widths = allot(groups, wide)
       const segments = groups.map((group, i) => ({ group, cells: widths[i] ?? 0 })).filter(one => one.cells > 0)
       // A kind too small to round to 1% is in the bar's total but gets no row
       const legend = groups.filter(group => group.pct >= 1).sort((a, b) => b.tokens - a.tokens)
-      const labelWidth = legend.reduce((most, group) => Math.max(most, group.label.length), 0)
+      const labelWidth = legend.reduce((most, group) => Math.max(most, width(group.label)), 0)
 
       return (
         <Box flexDirection="column">
-          <Text bold>Context window</Text>
+          <Text bold>{s.contextWindow}</Text>
           {now.tokens === null ? (
-            <Text dimColor>No response yet in this context window.</Text>
+            <Text dimColor>{s.noResponse}</Text>
           ) : (
             <Box flexDirection="column">
               {meter(used, wide)}
-              <Text>
-                {tokens(now.tokens)} of {tokens(now.window)} used ({Math.round(used)}%)
-              </Text>
+              <Text>{s.used(tokens(now.tokens), tokens(now.window), Math.round(used))}</Text>
               {notes.length > 0 && (
                 <Text dimColor={!isNear} bold={isNear}>
                   {notes.join(' · ')}
@@ -307,7 +328,7 @@ export const register: Register = on => {
 
           {groups.length > 0 && (
             <Box flexDirection="column" marginTop={1}>
-              <Text bold>What fills it{now.tokens === null ? '' : ` (the ${tokens(now.tokens)} in use)`}</Text>
+              <Text bold>{s.whatFills(now.tokens === null ? null : tokens(now.tokens))}</Text>
               <Box>
                 {segments.map(one => (
                   <Text color={one.group.color}>{'█'.repeat(one.cells)}</Text>
@@ -317,17 +338,17 @@ export const register: Register = on => {
                 <Box>
                   <Text color={group.color}>■ </Text>
                   <Text>
-                    {group.label.padEnd(labelWidth)} {String(group.pct).padStart(3)}% {tokens(group.tokens).padStart(5)}
+                    {padTo(group.label, labelWidth)} {String(group.pct).padStart(3)}% {tokens(group.tokens).padStart(5)}
                   </Text>
                 </Box>
               ))}
             </Box>
           )}
-          {groups.length === 0 && now.hasMonitor && <Text dimColor>No breakdown yet.</Text>}
+          {groups.length === 0 && now.hasMonitor && <Text dimColor>{s.noBreakdown}</Text>}
 
           {now.limits.length > 0 && (
             <Box flexDirection="column" marginTop={1}>
-              <Text bold>Usage limits</Text>
+              <Text bold>{s.limits}</Text>
               {now.limits.map(limit => {
                 const left = timeLeft(limit.resetsAt, now.at)
 
@@ -337,7 +358,7 @@ export const register: Register = on => {
                     {meter(limit.percentUsed, narrow)}
                     <Text>
                       {' '}
-                      {String(Math.round(limit.percentUsed)).padStart(3)}%{left === null ? '' : ` · resets in ${left}`}
+                      {String(Math.round(limit.percentUsed)).padStart(3)}%{left === null ? '' : s.resetsIn(left)}
                     </Text>
                   </Box>
                 )
@@ -346,34 +367,30 @@ export const register: Register = on => {
           )}
 
           <Box flexDirection="column" marginTop={1}>
-            <Text bold>Memory</Text>
+            <Text bold>{s.memory}</Text>
             {own !== undefined && now.memoryTotal !== null && (
-              <Text>
-                {memory(own.mem)} this session, {memory(now.memoryTotal)} across {sessions(now.sessions.length)}
-              </Text>
+              <Text>{s.thisSession(memory(own.mem), memory(now.memoryTotal), s.sessions(now.sessions.length))}</Text>
             )}
             {children !== null && <Text dimColor>{children}</Text>}
             {now.sessions.map(one => (
               <Text dimColor={one.session !== now.sessionId}>
                 {one.session === now.sessionId ? '›' : ' '} {memory(one.mem).padStart(5)} {one.name || folder(one.cwd)}
-                {one.mcp_count ? `  (${servers(one.mcp_count)} ${memory(one.mcp_mem ?? 0)})` : ''}
+                {one.mcp_count ? `  (${s.servers(one.mcp_count)} ${memory(one.mcp_mem ?? 0)})` : ''}
               </Text>
             ))}
             {now.outside.length > 0 && (
               <Box flexDirection="column" marginTop={1}>
-                <Text bold>
-                  {servers(now.outside.length)} outside every session: {memory(outsideMem)}
-                </Text>
+                <Text bold>{s.outside(s.servers(now.outside.length), memory(outsideMem))}</Text>
                 {now.outside.map(one => (
                   <Text dimColor>
                     {'  '}
-                    {memory(one.mem).padStart(5)} {one.name.padEnd(outsideWidth)}  up {age(one.age)}
+                    {memory(one.mem).padStart(5)} {padTo(one.name, outsideWidth)}  {s.up(age(one.age))}
                   </Text>
                 ))}
               </Box>
             )}
             {!now.hasMonitor && (
-              <Text dimColor>The cc-footprint tray app is not running: no memory figures, no breakdown.</Text>
+              <Text dimColor>{s.noMonitor}</Text>
             )}
           </Box>
 
@@ -385,7 +402,7 @@ export const register: Register = on => {
       // way to read again
       return (
         <Box flexDirection="column">
-          <Text dimColor>The figures could not be drawn.</Text>
+          <Text dimColor>{strings(said).cannotDraw}</Text>
           {refresh}
         </Box>
       )

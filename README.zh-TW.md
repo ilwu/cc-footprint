@@ -43,7 +43,7 @@ Claude Code 內建的 `/context` 也看得到組成，但要你去問它。這�
 
 - **`Claude 310M/1.3G`** — 這個 session／全部 session。一個 session 算的是 claude 行程、它啟動的 MCP server，和工具執行指令用的 shell。
 - **`MCP 120M(3)`** — 這個 session 自己的 MCP server 和它們的記憶體。每個 session 都會各自啟動一份本機的 MCP server，記憶體常常就是花在這裡。
-- **`+2 outside 240M`** — 黃色：這台機器上不屬於任何 session 的 MCP server——關掉的 session 留下來的，或別的程式的（Chrome 擴充套件的橋接程式、桌面版的 server）。沒有任何 session 在用的記憶體；`/footprint` 會一個個列出來。
+- **不屬於任何 session 的 MCP server** — 在 `/footprint` 面板裡：關掉的 session 留下來的，或別的程式的（Chrome 擴充套件的橋接程式、桌面版的 server）。沒有任何 session 在用的記憶體，逐一列出名稱、大小和跑了多久。
 - **`Sys 71%`** — 電腦變慢到底是不是記憶體的問題。
 
 ## 它怎麼告訴你
@@ -128,7 +128,7 @@ cd cc-footprint
 | `↑` 跳一大段 | 剛才那步太貴 — 下次一次少讀一點，指令輸出先過濾 |
 | 來源是 `think` | 調低 effort（`/effort`） |
 | `mcp` 佔比高，或最大來源是某個 MCP server | 把那類工作交給子代理（下面） |
-| 某個 session 的 `Claude` 特別重 | 關掉或重開（`claude --resume <id>` 接回）；`outside` 裡關掉的 session 留下的那些，直接在工作管理員結束（`/footprint` 看得出是哪些） |
+| 某個 session 的 `Claude` 特別重 | 關掉或重開（`claude --resume <id>` 接回）；`/footprint` 列出的「不屬於任何 session」的 MCP server 裡，關掉的 session 留下的那些，直接在工作管理員結束 |
 | 額度快撞上限 | 先做重要的，暫停不急的 session；重置只剩幾分鐘就等一下 |
 
 ### 瀏覽器操作交給子代理
@@ -165,14 +165,14 @@ cd cc-footprint
 | **記憶體** | | | |
 | System Memory | 系統記憶體使用率 % + 進度條 | 電腦變慢時，先確認是不是記憶體不夠；快滿了就別再開新 session | 開 |
 | Claude Memory | 本 session / 全部 session 總計。一個 session 算整棵行程樹：claude 行程、它的 MCP server、工具用的 shell | 開了好幾個 session，找出最吃記憶體的那個關掉或重開 | 開 |
-| MCP Memory | 這個 session 自己的 MCP server：記憶體和個數。後面黃色的 `+N outside` 是這台機器上不屬於任何 session 的 MCP server，關掉的 session 留下的或別的程式的（Chrome 的橋接程式、桌面版） | 看這個 session 有多少是 MCP server 佔的，以及哪些記憶體沒有任何 session 在用；`/footprint` 會一個個列出來 | 開 |
+| MCP Memory | 這個 session 自己的 MCP server：記憶體和個數；沒有就不顯示。不屬於任何 session 的在 `/footprint` 面板 | 看這個 session 有多少是 MCP server 佔的 | 開 |
 | **Session 資訊** | | | |
 | Session ID | 完整 UUID | 之後用 `claude --resume <id>` 接回這個 session，或回報問題時附上 | 開 |
 | Project Path | 專案根目錄 | 同時開好幾個視窗時，一眼分辨這個視窗在哪個專案，避免在錯的專案下指令 | 開 |
 | Model + Effort | 目前使用的模型和 effort 等級（如 `Opus 5.5 · high`） | 用 `/model` 或 `/effort` 切換過，或不同專案預設不同時，確認現在用的是哪個。Effort 越高，進到 context 的思考內容越多 | 關 |
 | Lines +/- | 本 session 新增 / 刪除行數 | Commit 前檢查改動規模是不是比預期大 | 關 |
 | Session Duration | Session 已進行時間 | 開很久的 session，context 和記憶體通常也跟著膨脹，是該考慮重開的訊號 | 關 |
-| /footprint Hint | plugin 已安裝給你的帳號時顯示 `/footprint`；還沒裝時顯示 `plugin off: rerun the installer for /footprint` | 提醒你面板一個指令就能開，還沒裝的人也知道怎麼取得。只裝在單一專案的 plugin 看不到，那種情況把這項關掉 | 開 |
+| /footprint Hint | plugin 已安裝給你的帳號時顯示 `/footprint`；還沒裝時顯示 `/footprint: off`（重跑安裝程式就有） | 提醒你面板一個指令就能開，還沒裝的人也知道怎麼取得。只裝在單一專案的 plugin 看不到，那種情況把這項關掉 | 開 |
 
 ### 運作原理
 
@@ -207,9 +207,12 @@ Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對�
   "ctx": true, "ctx_grow": true, "ctx_src": false, "ctx_mcp": true,
   "five_hour": true, "week": true, "resets": true, "cost": false,
   "session_id": true, "path": true, "plugin_hint": true,
-  "model": false, "lines": false, "duration": false
+  "model": false, "lines": false, "duration": false,
+  "lang": "auto"
 }
 ```
+
+`lang` 是工具列選單和 `/footprint` 面板的語言：`auto` 跟著系統，或指定 `en`、`zh-TW`、`zh-CN`、`ja`、`ko`；系統語言沒有對應的就用英文。工具列選單的 **Language** 可以切換（這一項在每種語言都叫 Language，選錯了也找得回來）。狀態列的縮寫（`Ctx`、`5h`、`Sys`…）在每種語言都一樣。日文和韓文的用字是初稿，歡迎指正。
 
 背景程式監聽 `127.0.0.1:19823`。要改連接埠，編輯 `monitor/app.js` 裡的 `PORT`，以及 `statusline/statusline.sh` 和 `plugin/hooks/register.tsx` 裡對應的埠號。
 

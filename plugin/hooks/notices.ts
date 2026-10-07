@@ -1,4 +1,6 @@
 import type { Part, View } from '../types'
+import { strings } from './strings'
+import type { Strings } from './strings'
 
 /** A turn that adds this share of the window is worth a toast. */
 export const BIG_TURN = 0.05
@@ -21,11 +23,6 @@ export function memory(bytes: number): string {
   const mb = bytes / 1_048_576
 
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)}G` : `${Math.round(mb)}M`
-}
-
-/** `1 session`, `3 sessions`. */
-export function sessions(n: number): string {
-  return `${n} session${n === 1 ? '' : 's'}`
 }
 
 /** `2h13m`, `4d21h`, `45m`; null when the reset is unknown or already past. */
@@ -54,21 +51,6 @@ function duration(minutes: number): string {
   return `${minutes}m`
 }
 
-const NAMES: Record<string, string> = {
-  output: "Claude's own output",
-  think: 'thinking',
-  files: 'file reads',
-  shell: 'command output',
-  search: 'search results',
-  web: 'web pages',
-  agents: 'subagent reports',
-  prompts: 'your prompts',
-  tools: 'tool results',
-  summary: 'the compaction summary',
-  system: 'engine reminders',
-  base: 'system prompt and tools',
-}
-
 /** What the pane draws for one kind of content: several parts under one colour. */
 export type Group = { key: string; label: string; color: string; tokens: number; pct: number }
 
@@ -76,17 +58,17 @@ export type Group = { key: string; label: string; color: string; tokens: number;
 // them. Each keeps its colour whatever its size; the eight hues are one
 // validated categorical palette in its documented order, and what nobody
 // can act on mid-session (the system prompt, tool definitions, reminders)
-// is neutral. A part the tray app names otherwise is an MCP server.
-const GROUPS: readonly { key: string; label: string; color: string; of: readonly string[] }[] = [
-  { key: 'output', label: "Claude's output", color: '#3987e5', of: ['output'] },
-  { key: 'think', label: 'Thinking', color: '#d95926', of: ['think'] },
-  { key: 'shell', label: 'Command output', color: '#199e70', of: ['shell'] },
-  { key: 'files', label: 'File reads', color: '#c98500', of: ['files'] },
-  { key: 'mcp', label: 'MCP tools', color: '#d55181', of: [] },
-  { key: 'web', label: 'Search & web', color: '#008300', of: ['search', 'web'] },
-  { key: 'agents', label: 'Subagents & tools', color: '#9085e9', of: ['agents', 'tools'] },
-  { key: 'prompts', label: 'Prompts & summaries', color: '#e66767', of: ['prompts', 'summary'] },
-  { key: 'system', label: 'System & tools setup', color: '#898781', of: ['base', 'system'] },
+// is neutral. Their names are in strings.ts.
+const GROUPS: readonly { key: keyof Strings['kinds']; color: string; of: readonly string[] }[] = [
+  { key: 'output', color: '#3987e5', of: ['output'] },
+  { key: 'think', color: '#d95926', of: ['think'] },
+  { key: 'shell', color: '#199e70', of: ['shell'] },
+  { key: 'files', color: '#c98500', of: ['files'] },
+  { key: 'mcp', color: '#d55181', of: [] },
+  { key: 'web', color: '#008300', of: ['search', 'web'] },
+  { key: 'agents', color: '#9085e9', of: ['agents', 'tools'] },
+  { key: 'prompts', color: '#e66767', of: ['prompts', 'summary'] },
+  { key: 'system', color: '#898781', of: ['base', 'system'] },
 ]
 
 const BUILT_IN = new Set(GROUPS.flatMap(group => group.of))
@@ -106,7 +88,7 @@ const idOf = (part: Part): string => part.id ?? part.name
  * The parts folded into the kinds the pane draws, in stacking order, a kind
  * holding nothing left out. MCP servers share one kind, named in its label.
  */
-export function groupParts(parts: readonly Part[]): Group[] {
+export function groupParts(parts: readonly Part[], s: Strings = strings('en')): Group[] {
   const total = parts.reduce((sum, part) => sum + part.tokens, 0)
   if (total <= 0) return []
   const servers = parts.filter(part => kindOf(part) === 'mcp')
@@ -115,7 +97,7 @@ export function groupParts(parts: readonly Part[]): Group[] {
     const own = group.key === 'mcp' ? servers : parts.filter(part => group.of.includes(kindOf(part)))
     const sum = own.reduce((all, part) => all + part.tokens, 0)
     const names = servers.slice(0, 2).map(part => part.name).join(', ') + (servers.length > 2 ? ', ...' : '')
-    const label = group.key === 'mcp' && servers.length > 0 ? `MCP tools (${names})` : group.label
+    const label = group.key === 'mcp' && servers.length > 0 ? s.mcpWith(names) : s.kinds[group.key]
 
     return { key: group.key, label, color: group.color, tokens: sum, pct: Math.round((100 * sum) / total) }
   }).filter(group => group.tokens > 0)
@@ -142,8 +124,8 @@ export function allot(groups: readonly Group[], cells: number): number[] {
 }
 
 /** A part in words. */
-export function describe(part: Part): string {
-  return kindOf(part) === 'mcp' ? `the ${part.name} MCP server` : (NAMES[kindOf(part)] ?? part.name)
+export function describe(part: Part, s: Strings = strings('en')): string {
+  return kindOf(part) === 'mcp' ? s.mcpServer(part.name) : (s.words[kindOf(part)] ?? part.name)
 }
 
 /**
@@ -154,6 +136,7 @@ export function turnNotice(base: TurnBase | null, now: View): string | null {
   const before = base?.tokens ?? null
   const grown = now.turn ?? (before !== null && now.tokens !== null ? now.tokens - before : null)
   if (grown === null || now.window <= 0 || grown < BIG_TURN * now.window) return null
+  const s = strings(now.lang)
 
   let top: Part | null = null
   let most = 0
@@ -167,10 +150,9 @@ export function turnNotice(base: TurnBase | null, now: View): string | null {
       }
     }
   }
-  const from = top !== null && most >= grown * 0.4 ? `, mostly ${describe(top)}` : ''
-  const share = Math.round((100 * grown) / now.window)
+  const what = top !== null && most >= grown * 0.4 ? describe(top, s) : null
 
-  return `Context +${tokens(grown)} this turn (${share}% of the window)${from}`
+  return s.turn(tokens(grown), Math.round((100 * grown) / now.window), what)
 }
 
 /** How far along to the auto-compact point the context is, 0 when unknown. */
@@ -182,26 +164,25 @@ export function compactShare(now: View): number {
 export function compactNotice(now: View): string | null {
   const share = compactShare(now)
   if (share < NEAR_COMPACT || now.compactAt === null || now.tokens === null) return null
-  const room = Math.max(0, now.compactAt - now.tokens)
 
-  return `Context is ${Math.round(share * 100)}% of the way to auto-compaction (${tokens(room)} left). /compact before starting something big.`
+  return strings(now.lang).nearCompact(Math.round(share * 100), tokens(Math.max(0, now.compactAt - now.tokens)))
 }
 
 /** The whole view in one line, for where no pane can be drawn. */
 export function summaryLine(now: View): string {
+  const s = strings(now.lang)
   const said: string[] = []
   if (now.tokens !== null) {
-    const share = Math.round((100 * now.tokens) / now.window)
-    const turn = now.turn !== null && now.turn > 0 ? `, +${tokens(now.turn)} this turn` : ''
-    said.push(`Context ${share}% (${tokens(now.tokens)} of ${tokens(now.window)})${turn}.`)
+    const turn = now.turn !== null && now.turn > 0 ? tokens(now.turn) : null
+    said.push(s.summaryContext(Math.round((100 * now.tokens) / now.window), tokens(now.tokens), tokens(now.window), turn))
   }
   const top = now.parts.filter(part => part.pct >= 1).slice(0, 3)
-  if (top.length > 0) said.push(`Largest: ${top.map(part => `${part.name} ${part.pct}%`).join(', ')}.`)
+  if (top.length > 0) said.push(s.summaryLargest(top.map(part => `${part.name} ${part.pct}%`).join(', ')))
   const own = now.sessions.find(one => one.session === now.sessionId)
   if (own !== undefined && now.memoryTotal !== null) {
-    said.push(`Memory: ${memory(own.mem)} of ${memory(now.memoryTotal)} across ${sessions(now.sessions.length)}.`)
+    said.push(s.summaryMemory(memory(own.mem), memory(now.memoryTotal), s.sessions(now.sessions.length)))
   }
-  if (!now.hasMonitor) said.push('The cc-footprint tray app is not running, so memory and the breakdown are unknown.')
+  if (!now.hasMonitor) said.push(s.summaryNoMonitor)
 
-  return said.length > 0 ? said.join(' ') : 'No figures yet: this session has had no response so far.'
+  return said.length > 0 ? said.join(' ') : s.summaryNothing
 }

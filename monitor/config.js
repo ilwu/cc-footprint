@@ -2,6 +2,8 @@
 
 // ── Items and their on/off settings ──────────────────────────────────
 // Each item defines: id, label, the menu group it sits in, default enabled.
+// The label is the English one; the tray shows i18n/<lang>.json's
+// "item.<id>". config.json also holds `lang`: "auto" or a language code.
 // The statusline reads the `display` list from the API to know what to
 // render. Adding an item takes more than this line: see CLAUDE.md.
 // A label must not hold "&": a Windows menu reads it as a shortcut mark
@@ -45,10 +47,11 @@ function createConfig(file) {
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) values = saved;
       }
     } catch {}
-    // Defaults for missing items
+    // Defaults for missing items; the language follows the system's
     for (const item of ITEMS) {
       if (values[item.id] === undefined) values[item.id] = item.default;
     }
+    if (typeof values.lang !== 'string') values.lang = 'auto';
     // In place, so that whoever holds `values` sees the change
     for (const k of Object.keys(self.values)) delete self.values[k];
     Object.assign(self.values, values);

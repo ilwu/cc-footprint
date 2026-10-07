@@ -43,7 +43,7 @@ Task Manager shows a row of identical `claude` processes with nothing to tell th
 
 - **`Claude 310M/1.3G`** — this session / all sessions. A session is the claude process, the MCP servers it started, and the shells its tools run commands in.
 - **`MCP 120M(3)`** — this session's own MCP servers and their memory. Every session starts its own copy of each local MCP server, and that is often where the memory goes.
-- **`+2 outside 240M`** — in yellow: MCP servers on this machine outside every session — left behind by a session that is gone, or another program's (Chrome's bridge to its extension, the desktop app's servers). Memory no session of yours is using; `/footprint` names each one.
+- **MCP servers outside every session** — in the `/footprint` pane: left behind by a session that is gone, or another program's (Chrome's bridge to its extension, the desktop app's servers). Memory no session of yours is using, each one by name, size and age.
 - **`Sys 71%`** — whether a slow machine is a memory problem at all.
 
 ## How it tells you
@@ -128,7 +128,7 @@ Once you have the figures:
 | `↑` jumps | That step was expensive — next time read less at once, filter command output first |
 | The top source is `think` | Lower the effort (`/effort`) |
 | `mcp` takes a large share, or the top source is an MCP server | Hand that kind of work to a subagent (below) |
-| One session's `Claude` is far heavier | Close or restart it (`claude --resume <id>` picks it up); of the `outside` servers, end the ones a closed session left behind (`/footprint` names them) |
+| One session's `Claude` is far heavier | Close or restart it (`claude --resume <id>` picks it up); of the MCP servers `/footprint` lists outside every session, end the ones a closed session left behind |
 | A limit is nearly used up | Finish what matters, pause the sessions that can wait; with minutes to the reset, wait |
 
 ### Hand browser work to a subagent
@@ -165,14 +165,14 @@ Watch the `mcp` share of `Ctx` for the effect. To change the subagent's model, e
 | **Memory** | | | |
 | System Memory | System memory usage % with a bar | When the machine slows down, check memory first; near full, open no more sessions | On |
 | Claude Memory | This session / all sessions. A session is its whole process tree: the claude process, its MCP servers, the shells its tools use | With several sessions open, find the heavy one and close or restart it | On |
-| MCP Memory | This session's own MCP servers: memory and count. `+N outside` in yellow after it: MCP servers on this machine outside every session, left behind or another program's (Chrome's bridge, the desktop app) | How much of this session is MCP servers, and what holds memory with no session using it; `/footprint` names each one | On |
+| MCP Memory | This session's own MCP servers: memory and count; nothing when it has none. The ones outside every session are in the `/footprint` pane | How much of this session is MCP servers | On |
 | **Session** | | | |
 | Session ID | The full UUID | `claude --resume <id>` later, or attach it to a bug report | On |
 | Project Path | The project's root | With several windows open, tell at a glance which project this one is in | On |
 | Model + Effort | The current model and effort level (`Opus 5.5 · high`) | After `/model` or `/effort`, or with different defaults per project, confirm which is in use. Higher effort puts more thinking into the context | Off |
 | Lines +/- | Lines added / removed this session | Before a commit, check the change is the size you expected | Off |
 | Session Duration | Time since the session started | A long session usually has a swollen context and memory too; a sign to consider restarting | Off |
-| /footprint Hint | `/footprint` once the plugin is installed for your user; `plugin off: rerun the installer for /footprint` while it is not | A reminder that the pane is one command away, and how to get it before you have it. A plugin installed for one project only is not seen; turn the hint off then | On |
+| /footprint Hint | `/footprint` once the plugin is installed for your user; `/footprint: off` while it is not (re-run the installer to get it) | A reminder that the pane is one command away, and how to get it before you have it. A plugin installed for one project only is not seen; turn the hint off then | On |
 
 ### How it works
 
@@ -210,9 +210,12 @@ The tray or menu bar menu writes `~/.cc-footprint/config.json`; on Linux you edi
   "ctx": true, "ctx_grow": true, "ctx_src": false, "ctx_mcp": true,
   "five_hour": true, "week": true, "resets": true, "cost": false,
   "session_id": true, "path": true, "plugin_hint": true,
-  "model": false, "lines": false, "duration": false
+  "model": false, "lines": false, "duration": false,
+  "lang": "auto"
 }
 ```
+
+`lang` is the language of the tray menu and the `/footprint` pane: `auto` follows the system's, or one of `en`, `zh-TW`, `zh-CN`, `ja`, `ko`; a system language with no table of its own gets English. The tray's **Language** menu sets it (the menu is called Language in every language, so a wrong choice can be undone). The statusline's short labels (`Ctx`, `5h`, `Sys`, ...) are the same in every language. The Japanese and Korean wording is a first draft — corrections are welcome.
 
 The background program listens on `127.0.0.1:19823`. To change the port, edit `PORT` in `monitor/app.js` and the matching port in `statusline/statusline.sh` and `plugin/hooks/register.tsx`.
 

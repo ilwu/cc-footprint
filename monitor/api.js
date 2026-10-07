@@ -12,7 +12,7 @@ const context = require('./context');
 // were measured, the window widths, the MCP servers outside every session,
 // the counters. Figures older than `staleMs` (the process query keeps
 // failing) are not passed on: an old figure would pass for a current one.
-function createHandler({ port, m, config, sessions, transcripts, plugin, collectSoon, staleMs }) {
+function createHandler({ port, m, config, i18n, sessions, transcripts, plugin, collectSoon, staleMs }) {
   // A page in a browser can reach this port by pointing a name of its own at
   // 127.0.0.1 (DNS rebinding), and would read every session's name and
   // folder. Its requests carry that name as Host, so only our own are
@@ -77,6 +77,8 @@ function createHandler({ port, m, config, sessions, transcripts, plugin, collect
       const { claude_total, system_pct, mcp_outside, mcp_outside_mem } = statusFor();
       return res.end(JSON.stringify({
         sessions: list, claude_total, system_pct, mcp_outside, mcp_outside_mem, outside: fresh() ? m.outside : [],
+        // The language the plugin is to speak (it has no way to tell itself)
+        lang: i18n.resolve(config.values.lang),
       }));
     }
 
@@ -118,7 +120,10 @@ function createHandler({ port, m, config, sessions, transcripts, plugin, collect
     // GET /config — current display config
     if (req.url === '/config') {
       config.refresh();
-      return res.end(JSON.stringify({ items: config.items, config: config.values, display: config.display() }));
+      return res.end(JSON.stringify({
+        items: config.items, config: config.values, display: config.display(),
+        lang: i18n.resolve(config.values.lang), langs: i18n.codes,
+      }));
     }
 
     res.writeHead(404);

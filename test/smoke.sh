@@ -202,14 +202,14 @@ pass "the statusline reads the input Claude Code really sends"
 
 # The /footprint hint follows the plugin's state in settings.json: how to get
 # it while it is missing, the command itself once it is enabled
-[[ "$line" == *"plugin off: rerun the installer for /footprint"* ]] || fail "no plugin nudge while it is not installed"
+[[ "$line" == *"/footprint: off"* ]] || fail "no plugin nudge while it is not installed"
 node -e '
   const fs = require("fs"), f = process.argv[1], s = JSON.parse(fs.readFileSync(f, "utf8"));
   s.enabledPlugins = { "cc-footprint@cc-footprint": true };
   fs.writeFileSync(f, JSON.stringify(s, null, 2));
 ' "$HOME/.claude/settings.json"
 line="$(printf '{"session_id":"%s"}' "$sid" | sl | strip)"
-[[ "$line" == *"/footprint"* && "$line" != *"plugin off"* ]] || fail "the hint did not switch to /footprint once the plugin was enabled: $line"
+[[ "$line" == *"/footprint"* && "$line" != *"/footprint: off"* ]] || fail "the hint did not switch to /footprint once the plugin was enabled: $line"
 pass "the /footprint hint follows whether the plugin is installed"
 
 # Lines are filled to the terminal's width by what they take on screen. A

@@ -32,7 +32,8 @@ function fakes({ measuredAgo = 1000 } = {}) {
   const ctx = { size: 12000, out: 0, turnStart: 10000, cats: { base: 10000, files: 1500, 'mcp:chrome': 500 } };
   const transcripts = { read: sid => (sid === SID ? ctx : null) };
   const plugin = { installed: true, check() {} };
-  return { port: 19823, m, config, sessions, transcripts, plugin, collectSoon() {}, staleMs: 180000 };
+  const i18n = { codes: ['en', 'ja'], resolve: setting => (setting === 'ja' ? 'ja' : 'en') };
+  return { port: 19823, m, config, i18n, sessions, transcripts, plugin, collectSoon() {}, staleMs: 180000 };
 }
 
 function ask(handler, url, host = 'l') {
@@ -100,6 +101,11 @@ test('/sessions lists the sessions and the MCP servers outside them', () => {
     session: SID, pid: 10, cwd: '/w/api', name: 'api', mem: 300 * MB, self: 200 * MB, procs: 3, mcp_mem: 50 * MB, mcp_count: 1,
   }]);
   assert.equal(r.json.outside[0].name, 'chrome-native-host');
+  assert.equal(r.json.lang, 'en');
+
+  const f = fakes();
+  f.config.values.lang = 'ja';
+  assert.equal(ask(createHandler(f), '/sessions').json.lang, 'ja');
 });
 
 test('/context gives every part with what it is', () => {

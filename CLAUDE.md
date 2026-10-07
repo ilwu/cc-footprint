@@ -64,6 +64,16 @@ None of these formats is documented; `test/fixtures/` holds a capture of each, w
 3. Both READMEs — the row in the items table and the key in the `config.json` defaults.
 4. `test/smoke.sh` — the 100-column wrapping check may move if the item is on by default.
 
+## Languages
+
+English, Traditional and Simplified Chinese, Japanese and Korean. `config.json`'s `lang` is `auto` (the system's locale, read by the monitor with `Intl`; Chinese by script, anything without a table English) or a code; the tray's Language menu sets it, and is called Language in every language so that a wrong choice can be undone.
+
+- The monitor's words (the tray) are in `monitor/i18n/<code>.json`, one file per language; the Language menu lists every file under the name it gives itself (`_name`). `i18n.test.js` holds every file to English's keys and placeholders.
+- The plugin's words are in `plugin/hooks/strings.ts`: a hooks module cannot read a JSON file, and the two share no phrase. Every language there is typed against English, so a missing phrase does not type-check. The plugin learns the language from `/sessions` (`lang`) and keeps the last one in `$.store`, so the pane stays in it while the monitor is down.
+- The statusline says nothing to translate: short labels (`Ctx`, `5h`, `Sys`, `mcp`) and figures only. Keep it that way; new words belong in the pane.
+- Column alignment in the pane goes by `width()` / `padTo()` from `strings.ts` (wide characters take two columns), never `.length` / `padEnd`.
+- To add a language: a JSON file in `monitor/i18n/`, an entry in `strings.ts`'s table, its locale in `fromLocale()` if it is not matched by its code; run both test suites.
+
 ## Global optimization (browser subagent)
 
 `claude/agents/browser.md` and `claude/global-rule.md` are an **optional** global optimization. The installers never apply it — they list it at the end, and when `CLAUDECODE` is set they print instructions for the AI running them (ask the user first, merge rather than overwrite). The manual steps are in the README under "Hand browser work to a subagent". `global-rule.md` carries its own `cc-footprint:browser-agent` start/end markers, which is how the uninstaller removes just that block. Edit the rule or the agent only in the source files under `claude/`.

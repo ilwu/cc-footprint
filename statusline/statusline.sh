@@ -90,7 +90,7 @@ fi
 
 # Parse API response
 sys_pct="" cld_total="" sess_mem="" mcp_total="" mcp_count="" display=""
-ctx_turn="" ctx_src="" ctx_src_pct="" ctx_mcp_pct="" mcp_outside="" mcp_outside_mem="" plugin=""
+ctx_turn="" ctx_src="" ctx_src_pct="" ctx_mcp_pct="" plugin=""
 if [[ -n "$resp" ]]; then
   [[ "$resp" =~ \"system_pct\":([0-9]+) ]]    && sys_pct="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"claude_total\":([0-9]+) ]]   && cld_total="${BASH_REMATCH[1]}"
@@ -98,8 +98,6 @@ if [[ -n "$resp" ]]; then
   [[ "$resp" =~ \"mcp_total\":([0-9]+) ]]      && mcp_total="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"mcp_count\":([0-9]+) ]]      && mcp_count="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"ctx_mcp_pct\":([0-9]+) ]]    && ctx_mcp_pct="${BASH_REMATCH[1]}"
-  [[ "$resp" =~ \"mcp_outside\":([0-9]+) ]]    && mcp_outside="${BASH_REMATCH[1]}"
-  [[ "$resp" =~ \"mcp_outside_mem\":([0-9]+) ]] && mcp_outside_mem="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"plugin\":(true|false) ]]     && plugin="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"ctx_turn\":(-?[0-9]+) ]]     && ctx_turn="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"ctx_src\":\"([^\"]+)\" ]]    && ctx_src="${BASH_REMATCH[1]}"
@@ -242,24 +240,14 @@ if has sys_mem; then
   add_item "${PC}Sys${R} ${BAR} ${PC}${sys_pct:-?}%${R}" "Sys ########## ${sys_pct:-?}%"
 fi
 if has claude_mem; then
-  add_item "${CYN}Claude${R} ${sess_fmt}/${DIM}${cld_fmt} (session/total)${R}" "Claude ${sess_fmt}/${cld_fmt} (session/total)"
+  # This session, then all of them together
+  add_item "${CYN}Claude${R} ${sess_fmt}/${DIM}${cld_fmt}${R}" "Claude ${sess_fmt}/${cld_fmt}"
 fi
-# This session's own MCP servers, then the ones on the machine outside every
-# session (left behind, or Chrome's and other programs'): memory no session
-# is using. /footprint names them.
-if has mcp_mem; then
-  mc="${mcp_count:-0}"; mo="${mcp_outside:-0}"
-  mcp_c=""; mcp_p=""
-  if [[ "$mc" != "0" ]]; then
-    fmt "$mcp_total"
-    mcp_c="${MAG}MCP${R} ${FMT}${DIM}(${mc})${R}"; mcp_p="MCP ${FMT}(${mc})"
-  fi
-  if [[ "$mo" != "0" ]]; then
-    fmt "$mcp_outside_mem"
-    [[ -z "$mcp_c" ]] && { mcp_c="${MAG}MCP${R}"; mcp_p="MCP"; }
-    mcp_c+=" ${YLW}+${mo} outside ${FMT}${R}"; mcp_p+=" +${mo} outside ${FMT}"
-  fi
-  [[ -n "$mcp_c" ]] && add_item "$mcp_c" "$mcp_p"
+# This session's own MCP servers. The ones outside every session are no
+# session's business: /footprint lists them.
+if has mcp_mem && [[ -n "$mcp_count" && "$mcp_count" != "0" ]]; then
+  fmt "$mcp_total"
+  add_item "${MAG}MCP${R} ${FMT}${DIM}(${mcp_count})${R}" "MCP ${FMT}(${mcp_count})"
 fi
 if has ctx; then
   # The share of the window that MCP tool results take, as cells of the bar
@@ -345,7 +333,7 @@ if has plugin_hint; then
   if [[ "$plugin" == true ]]; then
     add_item "${DIM}/footprint${R}" "/footprint"
   elif [[ "$plugin" == false ]]; then
-    add_item "${DIM}plugin off: rerun the installer for /footprint${R}" "plugin off: rerun the installer for /footprint"
+    add_item "${DIM}/footprint: off${R}" "/footprint: off"
   fi
 fi
 
