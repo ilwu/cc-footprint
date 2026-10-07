@@ -124,6 +124,10 @@ function fmtMem(bytes) {
 // The platform's collector lists the processes (collectors/); proctree.js
 // adds up each session's tree from that table.
 function collect() {
+  // A slow PowerShell must not have a second collection overtake it and its
+  // older table land last
+  if (collecting) return;
+  collecting = true;
   lastCollectAt = Date.now();
   checkPlugin();
 
@@ -132,16 +136,26 @@ function collect() {
   for (const sid of sessionUsage.keys()) {
     if (!sessionPids.has(sid)) sessionUsage.delete(sid);
   }
+  for (const [sid, at] of noTranscript) {
+    if (Date.now() - at >= RETRY_MS) noTranscript.delete(sid);
+  }
 
   const pids = new Set(sessionPids.values());
   const started = new Map(sessionStart);
-  collector.collect(pids, (err, seen) => {
+  try {
+    collector.collect(pids, done);
+  } catch (e) {
+    done(e);
+  }
+  function done(err, seen) {
+    collecting = false;
     if (err) {
+      stats.collect_errors++;
       console.error('[collect] failed:', err.message);
       return;
     }
     // An empty table means the query failed, not that everything exited
-    if (!seen.table.length) return;
+    if (!seen.table.length) { stats.collect_errors++; return; }
 
     const now = Date.now();
     // How long ago each session on file started: proctree tells by it a
@@ -158,9 +172,10 @@ function collect() {
     }
     systemMemPct = seen.systemPct;
     mcpOutside = measured.outside;
+    lastMeasuredAt = now;
 
     updateTray();
-  });
+  }
 }
 
 // ── Session → PID ────────────────────────────────────────────────────
@@ -195,10 +210,16 @@ function scanSessions() {
   }
 }
 
+// A session the files do not name yet (it has just started, or its id
+// changed after /clear or resume) has them read again, but not on every
+// render: at most every few seconds
+const RETRY_MS = 5000;
+let lastScanAt = 0;
 function pidForSession(sid) {
   let pid = sessionPids.get(sid);
-  if (pid === undefined) {
-    scanSessions(); // new session, or sessionId changed after /clear or resume
+  if (pid === undefined && Date.now() - lastScanAt >= RETRY_MS) {
+    lastScanAt = Date.now();
+    scanSessions();
     pid = sessionPids.get(sid);
   }
   return pid;
@@ -210,15 +231,22 @@ function pidForSession(sid) {
 // transcript .jsonl: only newly appended bytes are read. Subagents have
 // windows of their own, so only the main transcript counts.
 const PROJECTS_DIR = path.join(process.env.USERPROFILE || process.env.HOME, '.claude', 'projects');
-const sessionUsage = new Map(); // sessionId -> { file, offset, rest, ctx }
+const sessionUsage = new Map(); // sessionId -> { file, offset, rest, ctx, behind }
+const noTranscript = new Map(); // sessionId -> when it was last looked for in vain
+// The most read from a transcript in one go: a long session's file is
+// read a piece at a time, between requests, instead of all at once in one
+const CHUNK = 4 * 1048576;
 
 function findTranscript(sid) {
+  const missed = noTranscript.get(sid);
+  if (missed !== undefined && Date.now() - missed < RETRY_MS) return null;
   let dirs;
   try { dirs = fs.readdirSync(PROJECTS_DIR); } catch { return null; }
   for (const d of dirs) {
     const p = path.join(PROJECTS_DIR, d, sid + '.jsonl');
-    if (fs.existsSync(p)) return p;
+    if (fs.existsSync(p)) { noTranscript.delete(sid); return p; }
   }
+  noTranscript.set(sid, Date.now());
   return null;
 }
 
@@ -226,8 +254,9 @@ function processLine(st, line) {
   // Responses, prompts and tool results, and compaction boundaries
   if (!line.includes('"type":"assistant"') && !line.includes('"type":"user"') && !line.includes('"compact_boundary"')) return;
   let j;
-  try { j = JSON.parse(line); } catch { return; }
+  try { j = JSON.parse(line); } catch { stats.rows_failed++; return; }
   context.track(st.ctx, j);
+  stats.rows_read++;
 }
 
 function tailTranscript(st) {
@@ -239,58 +268,79 @@ function tailTranscript(st) {
       // Rewritten from the start: read it all again
       st.offset = 0; st.rest = Buffer.alloc(0); st.ctx = context.create();
     }
+    st.behind = false;
     if (size === st.offset) return;
-    const buf = Buffer.alloc(size - st.offset);
+    const buf = Buffer.alloc(Math.min(size - st.offset, CHUNK));
     const n = fs.readSync(fd, buf, 0, buf.length, st.offset);
     st.offset += n;
+    st.behind = st.offset < size;
     const data = Buffer.concat([st.rest, buf.subarray(0, n)]);
     const end = data.lastIndexOf(10) + 1; // only complete lines
     st.rest = data.subarray(end);
     for (const line of data.toString('utf8', 0, end).split('\n')) {
       // One row of an unforeseen shape costs that row, not the ones after it
-      if (line) try { processLine(st, line); } catch {}
+      if (line) try { processLine(st, line); } catch { stats.rows_failed++; }
     }
   } catch {
+    st.behind = false;
   } finally {
     if (fd !== undefined) try { fs.closeSync(fd); } catch {}
   }
+  // The rest of a long file is read on later turns of the event loop, so
+  // that requests are answered in between
+  if (st.behind && !st.catchingUp) {
+    st.catchingUp = true;
+    setImmediate(() => { st.catchingUp = false; tailTranscript(st); });
+  }
 }
 
-// The session's context state, read up to date; null with no transcript
+// The session's context state, read up to date; null with no transcript,
+// and while a long file is still being read, rather than a figure of half of it
 function readUsage(sid) {
   let st = sessionUsage.get(sid);
   if (!st) {
     const file = findTranscript(sid);
     if (!file) return null;
-    st = { file, offset: 0, rest: Buffer.alloc(0), ctx: context.create() };
+    st = { file, offset: 0, rest: Buffer.alloc(0), ctx: context.create(), behind: false, catchingUp: false };
     sessionUsage.set(sid, st);
+    stats.transcripts++;
   }
-  tailTranscript(st);
-  return st;
+  if (!st.catchingUp) tailTranscript(st);
+  return st.behind ? null : st;
 }
 
 // Throttled so a stale session file can't make every render spawn PowerShell
 let lastCollectAt = 0;
+let lastMeasuredAt = 0;
+let collecting = false;
+// What /status reports about the monitor itself
+const stats = { rows_read: 0, rows_failed: 0, transcripts: 0, collect_errors: 0 };
 function collectSoon() {
   if (Date.now() - lastCollectAt < 10000) return;
   collect();
 }
 
 // ── HTTP API ─────────────────────────────────────────────────────────
+// Measurements older than a few rounds (the process query keeps failing)
+// are not passed on: an old figure would pass for a current one
+const STALE_MS = 3 * INTERVAL;
+const fresh = () => lastMeasuredAt > 0 && Date.now() - lastMeasuredAt < STALE_MS;
+
 function statusFor(pid) {
-  const d = pid !== undefined ? store.get(pid) : undefined;
+  const ok = fresh();
+  const d = ok && pid !== undefined ? store.get(pid) : undefined;
   let claudeTotal = 0;
-  for (const v of store.values()) claudeTotal += v.mem;
+  if (ok) for (const v of store.values()) claudeTotal += v.mem;
   return {
     ...(d || { mem: null }),
-    claude_total: claudeTotal,
-    system_pct: systemMemPct,
+    claude_total: ok ? claudeTotal : null,
+    system_pct: ok ? systemMemPct : null,
     // This session's own MCP servers; the ones outside every session are
     // the machine's
     mcp_total: d ? d.mcp_mem : 0,
     mcp_count: d ? d.mcp_count : 0,
-    mcp_outside: mcpOutside.length,
-    mcp_outside_mem: mcpOutside.reduce((sum, s) => sum + s.mem, 0),
+    mcp_outside: ok ? mcpOutside.length : 0,
+    mcp_outside_mem: ok ? mcpOutside.reduce((sum, s) => sum + s.mem, 0) : 0,
     plugin: pluginInstalled,
     cols: windowCols.get(pid) || null,
     display: getDisplay(),
@@ -322,11 +372,16 @@ function answer(req, res) {
     return res.end('{}');
   }
 
-  // GET /status — all sessions
+  // GET /status — for looking at by hand: every session tree, and how the
+  // monitor is doing (a format that changed shows here as failed rows or
+  // no measurement for a while, where the statusline only loses a figure)
   if (req.url === '/status') {
-    const obj = {};
-    for (const [pid, d] of store) obj[pid] = d;
-    return res.end(JSON.stringify(obj));
+    const trees = {};
+    for (const [pid, d] of store) trees[pid] = d;
+    return res.end(JSON.stringify({
+      ...stats, last_collect_at: lastCollectAt || null, last_measured_at: lastMeasuredAt || null,
+      fresh: fresh(), sessions: trees,
+    }));
   }
 
   // GET /sessions — every running session with its memory, largest first
@@ -334,7 +389,7 @@ function answer(req, res) {
     scanSessions();
     const sessions = [];
     for (const [sid, pid] of sessionPids) {
-      const d = store.get(pid);
+      const d = fresh() ? store.get(pid) : undefined;
       if (!d) continue; // a session file left behind by a process that is gone
       sessions.push({
         session: sid, pid, ...sessionInfo.get(sid),
