@@ -41,7 +41,7 @@ Claude Code's own `/context` shows a breakdown too, when you ask for it. These f
 
 Task Manager shows a row of identical `claude` processes with nothing to tell them apart; a system memory percentage says "something is heavy", not which one. cc-footprint maps each session back to its process and adds up the whole tree under it:
 
-- **`Claude 310M/1.3G`** — this session / all sessions. A session is the claude process, the MCP servers it started, and the shells its tools run commands in.
+- **`Claude 310M/1.3G`** — this session / all sessions. A session is the claude process, the MCP servers it started, and the shells its tools run commands in. Another `claude` started under it (a tool running `claude -p`) is measured on its own: in the total, not in this session.
 - **`MCP 120M(3)`** — this session's own MCP servers and their memory. Every session starts its own copy of each local MCP server, and that is often where the memory goes.
 - **MCP servers outside every session** — in the `/footprint` pane: left behind by a session that is gone, or another program's (Chrome's bridge to its extension, the desktop app's servers). Memory no session of yours is using, each one by name, size and age.
 - **`Sys 71%`** — whether a slow machine is a memory problem at all.
@@ -71,7 +71,7 @@ So the slow work goes to a background program: every 60 seconds it reads the pro
 
 ## Install
 
-**Windows** — needs Windows 10/11, Node.js 18+ and Git Bash (comes with [Git for Windows](https://git-scm.com/)):
+**Windows** — needs Windows 10/11, Node.js 18+ (CI tests on 22) and Git Bash (comes with [Git for Windows](https://git-scm.com/)):
 
 ```powershell
 git clone https://github.com/ilwu/cc-footprint
@@ -79,7 +79,7 @@ cd cc-footprint
 .\install.ps1
 ```
 
-**Linux and macOS** — need Node.js 18+ and bash:
+**Linux and macOS** — need Node.js 18+ (CI tests on 22) and bash:
 
 ```bash
 git clone https://github.com/ilwu/cc-footprint
@@ -105,6 +105,16 @@ To have only the plugin on a machine without the clone, inside Claude Code:
 /plugin marketplace add ilwu/cc-footprint
 /plugin install cc-footprint@cc-footprint
 ```
+
+### Update
+
+```bash
+git pull
+./install.sh        # .\install.ps1 on Windows
+claude plugin update cc-footprint@cc-footprint
+```
+
+The installer copies the new statusline into place and restarts the background program on the new build; your item choices in `config.json` are kept. `claude plugin update` brings in the plugin's new version, if there is one; open sessions take it on `/reload-plugins` or a restart.
 
 ### Uninstall
 
@@ -219,6 +229,11 @@ The tray or menu bar menu writes `~/.cc-footprint/config.json`; on Linux you edi
 
 The background program listens on `127.0.0.1:19823`. To change the port, edit `PORT` in `monitor/app.js` and the matching port in `statusline/statusline.sh` and `plugin/hooks/register.tsx`.
 
+### Limits
+
+- **One person per machine.** The port and the statusline's note in `/tmp` are the same for everyone, so on a machine several people log into only the first one's background program runs, and the others' statuslines read it (its `/sessions` lists that person's sessions and folders).
+- **Claude Code's files in `~/.claude` only.** A Claude Code that keeps them elsewhere (`CLAUDE_CONFIG_DIR`) is not seen: the installer sets up the statusline in `~/.claude`, and the background program finds no sessions.
+
 ### Troubleshooting
 
 **`Sys`, `Claude` and the other measured items are missing from the statusline** — the background program is not running, or cannot be reached, and the statusline shows only what Claude Code itself reports. The simplest fix is to re-run the installer, which on all three platforms stops the old one and starts it again; or by hand (the items are back within 30 seconds, which is how often the statusline asks again):
@@ -228,6 +243,10 @@ The background program listens on `127.0.0.1:19823`. To change the port, edit `P
 - macOS — `launchctl kickstart -k gui/$(id -u)/com.ilwu.cc-footprint`; `launchctl print gui/$(id -u)/com.ilwu.cc-footprint` shows its state.
 
 **A new session shows `-` for Claude memory** — normal for the first seconds; the background program picks up the new session by the next render.
+
+**Figures that look wrong or never change** — open `http://127.0.0.1:19823/status` in a browser. `fresh: false` means there has been no measurement for three minutes (`collect_errors` counts the failed process queries); `config_broken: true` means `config.json` does not parse, and the last good settings stay in use until it is mended (a choice in the tray saves over it, keeping the old text as `config.json.broken`). The background program's own messages: on Linux `journalctl --user -u cc-footprint`; on Windows and macOS they are not kept, so stop it (Exit in the menu; on macOS `launchctl bootout gui/$(id -u)/com.ilwu.cc-footprint`) and run `node monitor/app.js` in a terminal to watch them.
+
+**The statusline is missing in one project** — that project's own `.claude/settings.json` or `.claude/settings.local.json` sets a `statusLine`, which wins over yours.
 
 **No menu bar icon** (macOS) — the macOS build has only been exercised on GitHub's machines, which show no menu bar, so the icon itself is unverified. The background program and the statusline work regardless; choose items in `~/.cc-footprint/config.json` until it appears.
 

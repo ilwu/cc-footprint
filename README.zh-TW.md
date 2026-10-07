@@ -41,7 +41,7 @@ Claude Code 內建的 `/context` 也看得到組成，但要你去問它。這�
 
 工作管理員裡是一排一模一樣的 `claude`，分不出誰是誰；系統記憶體百分比只告訴你「有東西很重」，不告訴你是哪一個。cc-footprint 把每個 session 對應回它的行程，再把那個行程底下整棵樹加起來：
 
-- **`Claude 310M/1.3G`** — 這個 session／全部 session。一個 session 算的是 claude 行程、它啟動的 MCP server，和工具執行指令用的 shell。
+- **`Claude 310M/1.3G`** — 這個 session／全部 session。一個 session 算的是 claude 行程、它啟動的 MCP server，和工具執行指令用的 shell。在它底下另外啟動的 `claude`（工具跑了 `claude -p`）會單獨計算：算進總量，不算進這個 session。
 - **`MCP 120M(3)`** — 這個 session 自己的 MCP server 和它們的記憶體。每個 session 都會各自啟動一份本機的 MCP server，記憶體常常就是花在這裡。
 - **不屬於任何 session 的 MCP server** — 在 `/footprint` 面板裡：關掉的 session 留下來的，或別的程式的（Chrome 擴充套件的橋接程式、桌面版的 server）。沒有任何 session 在用的記憶體，逐一列出名稱、大小和跑了多久。
 - **`Sys 71%`** — 電腦變慢到底是不是記憶體的問題。
@@ -71,7 +71,7 @@ Claude Code 內建的 `/context` 也看得到組成，但要你去問它。這�
 
 ## 安裝
 
-**Windows** — 需要 Windows 10/11、Node.js 18+ 和 Git Bash（隨 [Git for Windows](https://git-scm.com/) 安裝）：
+**Windows** — 需要 Windows 10/11、Node.js 18+（CI 用 22 測試）和 Git Bash（隨 [Git for Windows](https://git-scm.com/) 安裝）：
 
 ```powershell
 git clone https://github.com/ilwu/cc-footprint
@@ -79,7 +79,7 @@ cd cc-footprint
 .\install.ps1
 ```
 
-**Linux 和 macOS** — 需要 Node.js 18+ 和 bash：
+**Linux 和 macOS** — 需要 Node.js 18+（CI 用 22 測試）和 bash：
 
 ```bash
 git clone https://github.com/ilwu/cc-footprint
@@ -105,6 +105,16 @@ cd cc-footprint
 /plugin marketplace add ilwu/cc-footprint
 /plugin install cc-footprint@cc-footprint
 ```
+
+### 更新
+
+```bash
+git pull
+./install.sh        # Windows 用 .\install.ps1
+claude plugin update cc-footprint@cc-footprint
+```
+
+安裝程式會換上新的狀態列，用新版重新啟動背景程式；`config.json` 裡選好的項目會保留。`claude plugin update` 在 plugin 有新版時換上新版；已開著的 session 用 `/reload-plugins` 或重開就會套用。
 
 ### 移除
 
@@ -216,6 +226,11 @@ Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對�
 
 背景程式監聽 `127.0.0.1:19823`。要改連接埠，編輯 `monitor/app.js` 裡的 `PORT`，以及 `statusline/statusline.sh` 和 `plugin/hooks/register.tsx` 裡對應的埠號。
 
+### 限制
+
+- **一台機器一個人用。** 埠號和狀態列放在 `/tmp` 的記號是所有人共用的：多人登入的機器上只有第一個人的背景程式跑得起來，其他人的狀態列讀到的是它（它的 `/sessions` 會列出那個人的 session 和資料夾）。
+- **只認 `~/.claude`。** Claude Code 的檔案放在別處（`CLAUDE_CONFIG_DIR`）時看不到：安裝程式把狀態列設在 `~/.claude`，背景程式也找不到任何 session。
+
 ### 疑難排解
 
 **狀態列少了 `Sys`、`Claude` 這些量測項目** — 背景程式沒在跑，或連不上，狀態列只顯示 Claude Code 自己提供的項目。最簡單的是重跑安裝程式，三個平台都會先停掉舊的再啟動；或者手動（項目最多 30 秒就會回來，狀態列每隔這麼久才再問一次）：
@@ -225,6 +240,10 @@ Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對�
 - macOS — `launchctl kickstart -k gui/$(id -u)/com.ilwu.cc-footprint`；看狀態用 `launchctl print gui/$(id -u)/com.ilwu.cc-footprint`。
 
 **新開的 session，Claude 記憶體顯示 `-`** — 前幾秒是正常的；背景程式會在下一次顯示時抓到新 session。
+
+**數字看起來不對，或一直不變** — 用瀏覽器開 `http://127.0.0.1:19823/status`。`fresh: false` 表示已經三分鐘沒有量到（`collect_errors` 是行程查詢失敗的次數）；`config_broken: true` 表示 `config.json` 解析不了，修好之前沿用上一份正確的設定（在圖示選單點一下會直接覆寫，舊內容留在 `config.json.broken`）。背景程式自己的訊息：Linux 用 `journalctl --user -u cc-footprint`；Windows 和 macOS 不保留，要看就先停掉它（選單按 Exit；macOS 用 `launchctl bootout gui/$(id -u)/com.ilwu.cc-footprint`），再在終端機跑 `node monitor/app.js`。
+
+**某個專案裡沒有狀態列** — 那個專案自己的 `.claude/settings.json` 或 `.claude/settings.local.json` 設了 `statusLine`，會蓋過你的。
 
 **選單列沒有圖示**（macOS）— macOS 版只在 GitHub 的機器上跑過，那裡看不到選單列，所以圖示本身還沒驗證過。背景程式和狀態列不受影響；圖示出現之前，用 `~/.cc-footprint/config.json` 選項目。
 
