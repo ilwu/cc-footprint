@@ -64,6 +64,8 @@ function collect() {
   collecting = true;
   m.lastCollectAt = Date.now();
   plugin.check();
+  // config.json edited by hand: the tray's ticks follow it (tray.update)
+  config.refresh();
 
   // Forget the transcripts of sessions that have ended
   sessions.scan();
@@ -123,7 +125,9 @@ const tray = createTray({
 });
 
 config.load();
-config.save();
+// Written back with the defaults of items added since; a file that does not
+// parse is left for the person to mend
+if (!config.broken) config.save();
 collector.prepare(CONFIG_DIR);
 
 server.listen(PORT, '127.0.0.1', () => {

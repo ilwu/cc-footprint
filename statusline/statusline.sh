@@ -25,7 +25,7 @@ fi
 [[ "$input" =~ \"context_window_size\":([0-9]+) ]]     && ctx_win="${BASH_REMATCH[1]}"
 [[ "$input" =~ \"display_name\":\"([^\"]+)\" ]]           && model="${BASH_REMATCH[1]}"
 [[ "$input" =~ \"effort\":[{][^}]*\"level\":\"([^\"]+)\" ]] && effort="${BASH_REMATCH[1]}"
-[[ "$input" =~ \"total_cost_usd\":([0-9.]+) ]]           && cost="${BASH_REMATCH[1]}"
+[[ "$input" =~ \"total_cost_usd\":([0-9.eE+-]+) ]]       && cost="${BASH_REMATCH[1]}"
 [[ "$input" =~ \"total_lines_added\":([0-9]+) ]]         && lines_add="${BASH_REMATCH[1]}"
 [[ "$input" =~ \"total_lines_removed\":([0-9]+) ]]       && lines_del="${BASH_REMATCH[1]}"
 [[ "$input" =~ \"total_duration_ms\":([0-9]+) ]]         && duration_ms="${BASH_REMATCH[1]}"
@@ -41,9 +41,12 @@ proj="${proj%/}"
 [[ -z "$proj" ]] && proj="~"
 
 # ── HTTP GET via /dev/tcp (no curl, ~46ms) ───────────────────────
-# Response body -> RESP (runs in the main shell, no subshell)
+# Response body -> RESP (runs in the main shell, no subshell). Fails when
+# nothing answers: no connection, or one that takes the request and says
+# nothing (another program on the port, a monitor that is stuck); the
+# caller then backs off as it would from a refused connection.
 http_get() {
-  local line body
+  local line body=""
   RESP=""
   { exec 3<>/dev/tcp/127.0.0.1/19823; } 2>/dev/null || return 1
   printf "GET %s HTTP/1.0\r\nHost: l\r\n\r\n" "$1" >&3
@@ -51,6 +54,7 @@ http_get() {
   while read -r -t 1 line; do [[ "${line//$'\r'/}" == "" ]] && break; done <&3
   read -r -t 1 body <&3; exec 3<&-
   RESP="${body//$'\r'/}"
+  [[ -n "$RESP" ]]
 }
 
 # Now in epoch seconds, without a fork: EPOCHSECONDS on bash 5, printf's
@@ -174,6 +178,9 @@ pct_color() {
 # the share MCP tool results take that way.
 bar() {
   local pct=${1:-0} mcp=${2:-0} i
+  # Ten cells whatever the figure: over 100% (a limit past its end) the bar
+  # is full, and the width reckoned for it stays right
+  ((pct > 100)) && pct=100
   local filled=$((pct / 10)) empty=$((10 - pct / 10))
   ((mcp > filled)) && mcp=$filled
   pct_color "$pct"
@@ -300,8 +307,13 @@ if has model; then
   fi
 fi
 if has cost; then
+  # Dollars and two digits of cents: 2 is $2.00, 0.5 $0.50. A figure in
+  # exponent form (5e-7) is under a cent; the regex took only its digits.
+  [[ "$cost" =~ [eE] ]] && cost=0
   if [[ -n "$cost" && "$cost" != "0" ]]; then
-    cost_int="${cost%%.*}"; cost_dec="${cost#*.}"; cost_dec="${cost_dec:0:2}"
+    cost_int="${cost%%.*}"; cost_dec=""
+    [[ "$cost" == *.* ]] && cost_dec="${cost#*.}"
+    cost_dec="${cost_dec}00"; cost_dec="${cost_dec:0:2}"; cost_int="${cost_int:-0}"
     add_item "${YLW}\$$cost_int.$cost_dec${R}" "\$$cost_int.$cost_dec"
   fi
 fi

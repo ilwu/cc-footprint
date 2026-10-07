@@ -124,3 +124,22 @@ test("Chrome's bridge is an MCP server outside every session, not a session of i
   assert.deepEqual([...sessions.keys()], [10]);
   assert.deepEqual(outside, [{ pid: 70, name: 'chrome-native-host', mem: 42 * MB, age: 600000 - 1 }]);
 });
+
+test('a claude that names MCP on its command line is a session that uses MCP, not a server', () => {
+  const { sessions, outside } = measure([
+    row(10, 1, 150, OLD, 'claude.exe', 'mcp-config'), // claude -p --mcp-config x.json
+  ], new Map(), NOW);
+
+  assert.deepEqual([...sessions.keys()], [10]);
+  assert.deepEqual(outside, []);
+});
+
+test('a session under an MCP server outside every session is counted once, as a session', () => {
+  const { sessions, outside } = measure([
+    row(20, 1, 30, OLD, 'node.exe', 'claude-code-mcp'),
+    row(21, 20, 400, OLD + 1, 'claude.exe'),
+  ], new Map(), NOW);
+
+  assert.equal(sessions.get(21).mem, 400 * MB);
+  assert.deepEqual(outside.map(o => [o.name, o.mem]), [['claude-code-mcp', 30 * MB]]);
+});

@@ -57,7 +57,7 @@ function createHandler({ port, m, config, i18n, sessions, transcripts, plugin, c
       for (const [pid, d] of m.store) trees[pid] = d;
       return res.end(JSON.stringify({
         ...m.stats, last_collect_at: m.lastCollectAt || null, last_measured_at: m.lastMeasuredAt || null,
-        fresh: fresh(), sessions: trees,
+        fresh: fresh(), config_broken: config.broken, sessions: trees,
       }));
     }
 

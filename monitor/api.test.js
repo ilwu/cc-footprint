@@ -23,7 +23,7 @@ function fakes({ measuredAgo = 1000 } = {}) {
     stats: { rows_read: 4, rows_failed: 0, transcripts: 1, collect_errors: 0 },
   };
   const values = Object.fromEntries(ITEMS.map(i => [i.id, true]));
-  const config = { items: ITEMS, values, refresh() {}, display: () => ITEMS.filter(i => values[i.id]).map(i => i.id) };
+  const config = { items: ITEMS, values, broken: false, refresh() {}, display: () => ITEMS.filter(i => values[i.id]).map(i => i.id) };
   const sessions = {
     pids: new Map([[SID, 10]]), info: new Map([[SID, { cwd: '/w/api', name: 'api' }]]),
     scan() {}, pidFor: sid => (sid === SID ? 10 : undefined),

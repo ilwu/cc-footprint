@@ -14,6 +14,9 @@ test('an MCP server is named by the word of its command line that names it', () 
   assert.equal(label('C:\\py\\python.exe -m mcp_server_time'), 'mcp_server_time');
   // Linux separates the words with NUL
   assert.equal(label('node\0/x/mcp-server-git/index.js\0--repo\0/x'), 'mcp-server-git');
+  // A scoped package run by its path keeps its whole name
+  assert.equal(label('node C:\\nm\\@modelcontextprotocol\\server-filesystem\\dist\\index.js'), '@modelcontextprotocol/server-filesystem');
+  assert.equal(label('node /nm/@acme/mcp-server-x/index.js'), '@acme/mcp-server-x');
   // Nothing names one
   assert.equal(label('"C:\\Users\\me\\.local\\bin\\claude.exe"'), '');
   assert.equal(label(''), '');

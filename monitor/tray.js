@@ -118,6 +118,15 @@ function createTray({ config, i18n, m, sessions, configDir, onExit }) {
     if (i18n.resolve(config.values.lang) !== lang) return relabel();
     statusLine();
     send(statusItem);
+    // A tick that no longer matches config.json (edited by hand) is put
+    // right, or the next click would turn the item the other way than shown
+    config.items.forEach((item, i) => {
+      const on = !!config.values[item.id];
+      if (toggleItems[i].checked !== on) {
+        toggleItems[i].checked = on;
+        send(toggleItems[i]);
+      }
+    });
   }
 
   async function open(SysTray, items, renamed) {

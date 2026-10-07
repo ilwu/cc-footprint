@@ -35,18 +35,30 @@ const path = require('path');
 // live object: the tray flips its entries and saves.
 function createConfig(file) {
   const dir = path.dirname(file);
-  const self = { file, items: ITEMS, values: {} };
+  // broken: the file is there but holds no settings (a comma too many, made
+  // by hand). It is then left as it is, so that the person can mend it,
+  // and the settings in use are the last good ones (or the defaults).
+  const self = { file, items: ITEMS, values: {}, broken: false };
   let mtime = 0;
 
   self.load = () => {
     let values = {};
+    let broken = false;
     try {
       if (fs.existsSync(file)) {
         const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
         // A file holding null or a list is as good as one that does not parse
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) values = saved;
+        else broken = true;
       }
-    } catch {}
+    } catch {
+      broken = true;
+    }
+    self.broken = broken;
+    if (broken) {
+      console.error(`[config] ${file} holds no settings it can read: left as it is, the last good ones in use`);
+      if (Object.keys(self.values).length > 0) return;
+    }
     // Defaults for missing items; the language follows the system's
     for (const item of ITEMS) {
       if (values[item.id] === undefined) values[item.id] = item.default;
@@ -57,9 +69,15 @@ function createConfig(file) {
     Object.assign(self.values, values);
   };
 
+  // A choice made in the tray is saved even over a broken file, whose text
+  // is kept beside it as config.json.broken
   self.save = () => {
     try {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      if (self.broken) {
+        try { fs.copyFileSync(file, file + '.broken'); } catch {}
+        self.broken = false;
+      }
       fs.writeFileSync(file, JSON.stringify(self.values, null, 2));
     } catch (e) {
       console.error('[config] save failed:', e.message);

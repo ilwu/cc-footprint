@@ -109,8 +109,14 @@ if ($hasNode -and (Test-Path $claudeMd)) {
 # ── Remove config dir ────────────────────────────────────────────
 Write-Host "[5/6] Removing config..." -ForegroundColor Yellow
 if (Test-Path $configDir) {
-    Remove-Item $configDir -Recurse -Force
-    Write-Host "  Removed $configDir" -ForegroundColor Green
+    # A file still in use (the tray helper not yet gone) leaves the folder;
+    # the steps after this one still run
+    try {
+        Remove-Item $configDir -Recurse -Force -ErrorAction Stop
+        Write-Host "  Removed $configDir" -ForegroundColor Green
+    } catch {
+        Write-Host "  WARNING: could not remove all of $configDir ($($_.Exception.Message)) - delete it by hand" -ForegroundColor Yellow
+    }
 } else {
     Write-Host "  No config dir found" -ForegroundColor DarkGray
 }
