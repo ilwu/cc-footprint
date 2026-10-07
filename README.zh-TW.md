@@ -43,7 +43,7 @@ Claude Code 內建的 `/usage` 也會把費用歸到 MCP server，但那是跨�
 
 - **`Claude 310M/1.3G`** — 這個 session／全部 session。一個 session 算的是 claude 行程、它啟動的 MCP server，和工具執行指令用的 shell。
 - **`MCP 120M(3)`** — 這個 session 自己的 MCP server 和它們的記憶體。每個 session 都會各自啟動一份本機的 MCP server，記憶體常常就是花在這裡。
-- **`+2 orphaned 240M`** — 黃色：啟動它的 session 已經關了、卻還在跑的 MCP server。只佔記憶體不做事，可以結束掉。
+- **`+2 outside 240M`** — 黃色：這台機器上不屬於任何 session 的 MCP server——關掉的 session 留下來的，或別的程式的（Chrome 擴充套件的橋接程式、桌面版的 server）。沒有任何 session 在用的記憶體；`/footprint` 會一個個列出來。
 - **`Sys 71%`** — 電腦變慢到底是不是記憶體的問題。
 
 ## 它怎麼告訴你
@@ -128,7 +128,7 @@ cd cc-footprint
 | `↑` 跳一大段 | 剛才那步太貴 — 下次一次少讀一點，指令輸出先過濾 |
 | 來源是 `think` | 調低 effort（`/effort`） |
 | 來源是某個 MCP server，或 `MCP$` 高 | 把那類工作交給子代理（下面） |
-| 某個 session 的 `Claude` 特別重 | 關掉或重開（`claude --resume <id>` 接回）；`orphaned` 的直接在工作管理員結束 |
+| 某個 session 的 `Claude` 特別重 | 關掉或重開（`claude --resume <id>` 接回）；`outside` 裡關掉的 session 留下的那些，直接在工作管理員結束（`/footprint` 看得出是哪些） |
 | 額度快撞上限 | 先做重要的，暫停不急的 session；重置只剩幾分鐘就等一下 |
 
 ### 瀏覽器操作交給子代理
@@ -165,7 +165,7 @@ cd cc-footprint
 | **記憶體** | | | |
 | System Memory | 系統記憶體使用率 % + 進度條 | 電腦變慢時，先確認是不是記憶體不夠；快滿了就別再開新 session | 開 |
 | Claude Memory | 本 session / 全部 session 總計。一個 session 算整棵行程樹：claude 行程、它的 MCP server、工具用的 shell | 開了好幾個 session，找出最吃記憶體的那個關掉或重開 | 開 |
-| MCP Memory | 這個 session 自己的 MCP server：記憶體和個數。後面黃色的 `+N orphaned` 是這台機器上父行程已經不在的 MCP server | 看這個 session 有多少是 MCP server 佔的；孤兒行程只佔記憶體，可以結束掉 | 開 |
+| MCP Memory | 這個 session 自己的 MCP server：記憶體和個數。後面黃色的 `+N outside` 是這台機器上不屬於任何 session 的 MCP server，關掉的 session 留下的或別的程式的（Chrome 的橋接程式、桌面版） | 看這個 session 有多少是 MCP server 佔的，以及哪些記憶體沒有任何 session 在用；`/footprint` 會一個個列出來 | 開 |
 | **Session 資訊** | | | |
 | Session ID | 完整 UUID | 之後用 `claude --resume <id>` 接回這個 session，或回報問題時附上 | 開 |
 | Project Path | 專案根目錄 | 同時開好幾個視窗時，一眼分辨這個視窗在哪個專案，避免在錯的專案下指令 | 開 |
@@ -195,7 +195,7 @@ cd cc-footprint
 └───────────────────────────────────────────────────────────────┘
 ```
 
-Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對應讀的是 Claude Code 自己寫的 session 檔。MCP server 的判定：命令列含 `mcp` 且已經跑了 30 秒以上；父行程不在的算孤兒。背景程式不在時，狀態列不顯示它量測的項目，只剩 Claude Code 自己提供的；plugin 仍用 Claude Code 自己的數字回報成長量和壓縮門檻，但沒有記憶體和組成明細。（以前較快的 `wmic`，Windows 11 24H2 起已經移除。）
+Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對應讀的是 Claude Code 自己寫的 session 檔。MCP server 的判定：命令列有 `mcp`、`modelcontextprotocol` 或 Chrome 橋接程式的 `chrome-native-host` 字樣，且已經跑了 30 秒以上；不在任何 session 行程樹裡的算 `outside`。背景程式不在時，狀態列不顯示它量測的項目，只剩 Claude Code 自己提供的；plugin 仍用 Claude Code 自己的數字回報成長量和壓縮門檻，但沒有記憶體和組成明細。（以前較快的 `wmic`，Windows 11 24H2 起已經移除。）
 
 ### 設定
 

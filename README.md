@@ -43,7 +43,7 @@ Task Manager shows a row of identical `claude` processes with nothing to tell th
 
 - **`Claude 310M/1.3G`** — this session / all sessions. A session is the claude process, the MCP servers it started, and the shells its tools run commands in.
 - **`MCP 120M(3)`** — this session's own MCP servers and their memory. Every session starts its own copy of each local MCP server, and that is often where the memory goes.
-- **`+2 orphaned 240M`** — in yellow: MCP servers still running after the session that started them is gone. They do nothing but hold memory; end them.
+- **`+2 outside 240M`** — in yellow: MCP servers on this machine outside every session — left behind by a session that is gone, or another program's (Chrome's bridge to its extension, the desktop app's servers). Memory no session of yours is using; `/footprint` names each one.
 - **`Sys 71%`** — whether a slow machine is a memory problem at all.
 
 ## How it tells you
@@ -128,7 +128,7 @@ Once you have the figures:
 | `↑` jumps | That step was expensive — next time read less at once, filter command output first |
 | The top source is `think` | Lower the effort (`/effort`) |
 | The top source is an MCP server, or `MCP$` is high | Hand that kind of work to a subagent (below) |
-| One session's `Claude` is far heavier | Close or restart it (`claude --resume <id>` picks it up); end `orphaned` servers in Task Manager |
+| One session's `Claude` is far heavier | Close or restart it (`claude --resume <id>` picks it up); of the `outside` servers, end the ones a closed session left behind (`/footprint` names them) |
 | A limit is nearly used up | Finish what matters, pause the sessions that can wait; with minutes to the reset, wait |
 
 ### Hand browser work to a subagent
@@ -165,7 +165,7 @@ Watch `MCP$` for the effect. To change the subagent's model, edit `model:` in `b
 | **Memory** | | | |
 | System Memory | System memory usage % with a bar | When the machine slows down, check memory first; near full, open no more sessions | On |
 | Claude Memory | This session / all sessions. A session is its whole process tree: the claude process, its MCP servers, the shells its tools use | With several sessions open, find the heavy one and close or restart it | On |
-| MCP Memory | This session's own MCP servers: memory and count. `+N orphaned` in yellow after it: MCP servers on this machine whose parent process is gone | How much of this session is MCP servers; orphans only hold memory and can be ended | On |
+| MCP Memory | This session's own MCP servers: memory and count. `+N outside` in yellow after it: MCP servers on this machine outside every session, left behind or another program's (Chrome's bridge, the desktop app) | How much of this session is MCP servers, and what holds memory with no session using it; `/footprint` names each one | On |
 | **Session** | | | |
 | Session ID | The full UUID | `claude --resume <id>` later, or attach it to a bug report | On |
 | Project Path | The project's root | With several windows open, tell at a glance which project this one is in | On |
@@ -198,7 +198,7 @@ Watch `MCP$` for the effect. To change the subagent's model, edit `model:` in `b
 └───────────────────────────────────────────────────────────────┘
 ```
 
-Claude Code does not pass the process ID to the statusline, so sessions are mapped to processes through the session files Claude Code writes itself. An MCP server is a process whose command line mentions `mcp` and that has been alive for 30 seconds or more; one whose parent is gone is an orphan. When the background program is down, the statusline leaves out what that program measures and shows only what Claude Code itself reports; the plugin still reports growth and the compaction threshold from Claude Code's own numbers, but without memory or composition. (The faster `wmic` of old is gone from Windows 11 24H2 on.)
+Claude Code does not pass the process ID to the statusline, so sessions are mapped to processes through the session files Claude Code writes itself. An MCP server is a process whose command line names one (`mcp`, `modelcontextprotocol`, or Chrome's `chrome-native-host` bridge) and that has been alive for 30 seconds or more; one outside every session's process tree counts as `outside`. When the background program is down, the statusline leaves out what that program measures and shows only what Claude Code itself reports; the plugin still reports growth and the compaction threshold from Claude Code's own numbers, but without memory or composition. (The faster `wmic` of old is gone from Windows 11 24H2 on.)
 
 ### Configuration
 

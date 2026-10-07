@@ -30,8 +30,7 @@ const VIEW: View = {
     },
   ],
   memoryTotal: 2_147_483_648,
-  orphans: 0,
-  orphanMem: 0,
+  outside: [],
   hasMonitor: true,
 }
 
@@ -178,7 +177,14 @@ test('the pane draws the context, the limits and every session on each surface',
   }))
   on('http.fetch', (_, e) => {
     const body = e.url.endsWith('/sessions')
-      ? { sessions: VIEW.sessions, claude_total: VIEW.memoryTotal, mcp_orphans: 1, mcp_orphan_mem: 62_914_560 }
+      ? {
+          sessions: VIEW.sessions,
+          claude_total: VIEW.memoryTotal,
+          outside: [
+            { pid: 7, name: 'chrome-native-host', mem: 44_040_192, age: 7 * 86_400_000 },
+            { pid: 8, name: 'mcp-server-git', mem: 18_874_368, age: 3 * 3_600_000 },
+          ],
+        }
       : { tokens: 120_000, turn: 4_000, parts: [...VIEW.parts, { name: 'search', tokens: 30, pct: 0 }] }
 
     return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
@@ -213,7 +219,9 @@ test('the pane draws the context, the limits and every session on each surface',
       await ui.find({ type: 'Text', text: /claude 500M \+ 3 child processes 300M, 2 MCP servers 200M of it/ }),
     ).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /api\s+\(2 MCP servers 200M\)/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /1 MCP server left running by a process that is gone: 60M/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /2 MCP servers outside every session: 60M/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /42M chrome-native-host\s+up 7d/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /18M mcp-server-git\s+up 3h/ })).toBeDefined()
     expect(await ui.find({ key: 'refresh' })).toBeDefined()
     await ui.unmount()
   }

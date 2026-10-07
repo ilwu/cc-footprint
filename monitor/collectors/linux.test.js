@@ -44,11 +44,11 @@ test('the table carries memory, start time and the MCP mark for every process', 
     const byPid = new Map(seen.table.map(p => [p.pid, p]));
     assert.equal(seen.table.length, 3);
     assert.deepEqual(byPid.get(10), {
-      pid: 10, ppid: 1, mem: 1000 * 4096, born: 1700000000000 + 5000, name: 'claude', mcp: false,
+      pid: 10, ppid: 1, mem: 1000 * 4096, born: 1700000000000 + 5000, name: 'claude', mcp: null,
     });
-    assert.equal(byPid.get(11).mcp, true);
+    assert.equal(byPid.get(11).mcp, 'server-mcp');
     assert.equal(byPid.get(11).born, 1700000000000 + 6000);
-    assert.equal(byPid.get(12).mcp, false);
+    assert.equal(byPid.get(12).mcp, null);
     assert.equal(seen.systemPct, 75); // 4 GB available of 16
     assert.equal(seen.cols.size, 0);  // no terminal behind a plain file
     fs.rmSync(dir, { recursive: true, force: true });

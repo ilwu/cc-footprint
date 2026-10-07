@@ -110,8 +110,8 @@ function checkPlugin() {
     pluginInstalled = null;
   }
 }
-let mcpOrphans = 0;   // MCP servers whose parent process is gone
-let mcpOrphanMem = 0; // their memory in bytes
+// MCP servers outside every session's tree (see proctree.js), largest first
+let mcpOutside = []; // [{ pid, name, mem, age }]
 const windowCols = new Map(); // pid -> estimated terminal columns
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -157,8 +157,7 @@ function collect() {
       if (!store.has(pid)) windowCols.delete(pid);
     }
     systemMemPct = seen.systemPct;
-    mcpOrphans = measured.orphans;
-    mcpOrphanMem = measured.orphanMem;
+    mcpOutside = measured.outside;
 
     updateTray();
   });
@@ -358,11 +357,12 @@ function statusFor(pid) {
     ...(d || { mem: null }),
     claude_total: claudeTotal,
     system_pct: systemMemPct,
-    // This session's own MCP servers; orphans are counted machine-wide
+    // This session's own MCP servers; the ones outside every session are
+    // the machine's
     mcp_total: d ? d.mcp_mem : 0,
     mcp_count: d ? d.mcp_count : 0,
-    mcp_orphans: mcpOrphans,
-    mcp_orphan_mem: mcpOrphanMem,
+    mcp_outside: mcpOutside.length,
+    mcp_outside_mem: mcpOutside.reduce((sum, s) => sum + s.mem, 0),
     plugin: pluginInstalled,
     cols: windowCols.get(pid) || null,
     display: getDisplay(),
@@ -414,8 +414,8 @@ function answer(req, res) {
       });
     }
     sessions.sort((a, b) => b.mem - a.mem);
-    const { claude_total, system_pct, mcp_orphans, mcp_orphan_mem } = statusFor();
-    return res.end(JSON.stringify({ sessions, claude_total, system_pct, mcp_orphans, mcp_orphan_mem }));
+    const { claude_total, system_pct, mcp_outside, mcp_outside_mem } = statusFor();
+    return res.end(JSON.stringify({ sessions, claude_total, system_pct, mcp_outside, mcp_outside_mem, outside: mcpOutside }));
   }
 
   // GET /session/:sessionId — what the statusline calls
@@ -484,9 +484,9 @@ const exitItem = { title: 'Exit', tooltip: 'Exit cc-footprint', checked: false, 
 
 function updateTray() {
   if (!systray) return;
-  // One short line: the menu is as wide as its widest row. A process
-  // without a session file (the Chrome native host) is in the total, as in
-  // the statusline's, but is no session.
+  // One short line: the menu is as wide as its widest row. A claude process
+  // without a session file is in the total, as in the statusline's, but is
+  // no session.
   const pids = new Set(sessionPids.values());
   let sessions = 0, total = 0;
   for (const [pid, d] of store) {

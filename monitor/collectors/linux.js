@@ -8,8 +8,7 @@
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-
-const MCP = /mcp|modelcontextprotocol/i;
+const mcp = require('./mcp');
 
 // Two kernel constants /proc does not carry. They are 100 and 4096 on
 // virtually every Linux; getconf settles it where they are not.
@@ -67,7 +66,7 @@ function readTable(procDir) {
         mem: stat.rssPages * pageSize,
         born: boot + Math.round(stat.startTicks * 1000 / ticksPerSecond),
         name: stat.name,
-        mcp: MCP.test(cmdline),
+        mcp: mcp.label(cmdline) || null,
       });
     } catch {} // the process exited between the listing and the read
   }

@@ -9,8 +9,8 @@
 const { execFileSync } = require('child_process');
 const os = require('os');
 const path = require('path');
+const mcp = require('./mcp');
 
-const MCP = /mcp|modelcontextprotocol/i;
 const PS_COLUMNS = 'pid=,ppid=,rss=,etime=,tty=,command=';
 
 function run(file, args) {
@@ -39,7 +39,7 @@ function parsePs(text, now) {
       mem: rssKb * 1024,
       born: now - elapsedSeconds(etime) * 1000,
       name: path.basename(command.split(' ')[0]),
-      mcp: MCP.test(command),
+      mcp: mcp.label(command) || null,
     });
     if (tty !== '??') ttys.set(+pid, '/dev/' + tty);
   }

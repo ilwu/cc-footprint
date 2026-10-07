@@ -20,6 +20,14 @@ export type Session = {
   mcp_count?: number
 }
 
+/**
+ * An MCP server outside every session's process tree, as the tray app's
+ * /sessions lists them: left behind by a session that is gone, or started
+ * by something else (Chrome's bridge to its extension, the desktop app).
+ * `mem` is its whole subtree, `age` how long it has run, in milliseconds.
+ */
+export type Outside = { pid: number; name: string; mem: number; age: number }
+
 /** A rate-limit window; `resetsAt` is epoch milliseconds, null when unknown. */
 export type Limit = { kind: string; percentUsed: number; resetsAt: number | null }
 
@@ -40,9 +48,8 @@ export type View = {
   limits: Limit[]
   sessions: Session[]
   memoryTotal: number | null
-  /** MCP servers left running by a process that is gone, and their memory. */
-  orphans: number
-  orphanMem: number
+  /** MCP servers outside every session, largest first. */
+  outside: Outside[]
   hasMonitor: boolean
 }
 

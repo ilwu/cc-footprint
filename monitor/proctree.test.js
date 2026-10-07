@@ -8,8 +8,8 @@ const MB = 1048576;
 const NOW = 1000000;
 const OLD = NOW - 600000; // started ten minutes ago
 
-// pid, ppid, MB, born, name, mcp
-const row = (pid, ppid, mb, born, name, mcp = false) => ({ pid, ppid, mem: mb * MB, born, name, mcp });
+// pid, ppid, MB, born, name, mcp (the server's short name, null for the rest)
+const row = (pid, ppid, mb, born, name, mcp = null) => ({ pid, ppid, mem: mb * MB, born, name, mcp });
 
 test('a session is its claude process plus everything under it', () => {
   const { sessions } = measure([
@@ -26,25 +26,25 @@ test('a session is its claude process plus everything under it', () => {
 });
 
 test('an MCP server behind a wrapper counts once, with its whole subtree', () => {
-  const { sessions, orphans } = measure([
+  const { sessions, outside } = measure([
     row(10, 1, 400, OLD, 'claude.exe'),
-    row(11, 10, 5, OLD + 1, 'cmd.exe', true),   // cmd /c npx some-mcp
-    row(12, 11, 40, OLD + 2, 'node.exe', true), // npx
-    row(13, 12, 80, OLD + 3, 'node.exe', true), // the server
-    row(14, 10, 60, OLD + 1, 'python.exe', true),
+    row(11, 10, 5, OLD + 1, 'cmd.exe', 'some-mcp'),   // cmd /c npx some-mcp
+    row(12, 11, 40, OLD + 2, 'node.exe', 'some-mcp'), // npx
+    row(13, 12, 80, OLD + 3, 'node.exe', 'some-mcp'), // the server
+    row(14, 10, 60, OLD + 1, 'python.exe', 'mcp_server_time'),
   ], new Map(), NOW);
 
   const s = sessions.get(10);
   assert.equal(s.mcp_count, 2);
   assert.equal(s.mcp_mem, 185 * MB);
   assert.equal(s.mem, 585 * MB);
-  assert.equal(orphans, 0);
+  assert.deepEqual(outside, []);
 });
 
 test('a shell that only mentions mcp for a moment is not a server', () => {
   const { sessions } = measure([
     row(10, 1, 400, OLD, 'claude.exe'),
-    row(11, 10, 30, NOW - 2000, 'bash.exe', true), // grep mcp ...
+    row(11, 10, 30, NOW - 2000, 'bash.exe', 'mcp'), // grep mcp ...
   ], new Map(), NOW);
 
   const s = sessions.get(10);
@@ -74,26 +74,15 @@ test('a reused pid does not adopt an older stranger', () => {
 });
 
 test('a session file makes a node process a session; the desktop app is not one', () => {
-  const { sessions } = measure([
+  const { sessions, outside } = measure([
     row(10, 1, 350, OLD, 'node.exe'),     // npm-installed CLI
     row(20, 1, 600, OLD, 'Claude.exe'),   // desktop app
-    row(21, 20, 70, OLD + 1, 'node.exe', true), // its MCP server: alive parent, not ours
+    row(21, 20, 70, OLD + 1, 'node.exe', 'mcp-server-git'), // its MCP server
   ], new Map([[10, undefined]]), NOW);
 
   assert.deepEqual([...sessions.keys()], [10]);
-});
-
-test('MCP servers whose parent is gone are orphans', () => {
-  const { orphans, orphanMem } = measure([
-    row(10, 1, 400, OLD, 'claude.exe'),
-    row(31, 7777, 5, OLD, 'cmd.exe', true),     // parent 7777 no longer exists
-    row(32, 31, 120, OLD + 1, 'node.exe', true),
-    row(40, 8888, 60, OLD, 'node.exe', true),
-    row(50, 9999, 70, NOW - 1000, 'bash.exe', true), // too young to be a server
-  ], new Map(), NOW);
-
-  assert.equal(orphans, 2);
-  assert.equal(orphanMem, 185 * MB);
+  // The desktop app's server is outside every session of ours
+  assert.deepEqual(outside, [{ pid: 21, name: 'mcp-server-git', mem: 70 * MB, age: 600000 - 1 }]);
 });
 
 test('a session file whose pid went to a later process does not make that process a session', () => {
@@ -107,4 +96,31 @@ test('a session file whose pid went to a later process does not make that proces
   ]), NOW);
 
   assert.deepEqual([...sessions.keys()], [20]);
+});
+
+test('MCP servers outside every session are listed once per wrapper chain, largest first', () => {
+  const { outside } = measure([
+    row(10, 1, 400, OLD, 'claude.exe'),
+    row(31, 7777, 5, OLD, 'cmd.exe', 'some-mcp'),     // left behind: parent 7777 is gone
+    row(32, 31, 120, OLD + 1, 'node.exe', 'some-mcp'),
+    row(40, 8888, 60, OLD, 'node.exe', 'mcp-server-git'),
+    row(50, 9999, 70, NOW - 1000, 'bash.exe', 'mcp'), // too young to be a server
+  ], new Map(), NOW);
+
+  assert.deepEqual(outside, [
+    { pid: 31, name: 'some-mcp', mem: 125 * MB, age: 600000 },
+    { pid: 40, name: 'mcp-server-git', mem: 60 * MB, age: 600000 },
+  ]);
+});
+
+test("Chrome's bridge is an MCP server outside every session, not a session of its own", () => {
+  const { sessions, outside } = measure([
+    row(10, 1, 400, OLD, 'claude.exe'),
+    row(60, 1, 500, OLD, 'chrome.exe'),
+    row(70, 60, 8, OLD + 1, 'cmd.exe', 'chrome-native-host'),      // chrome-native-host.bat
+    row(71, 70, 34, OLD + 2, 'claude.exe', 'chrome-native-host'),  // claude --chrome-native-host
+  ], new Map(), NOW);
+
+  assert.deepEqual([...sessions.keys()], [10]);
+  assert.deepEqual(outside, [{ pid: 70, name: 'chrome-native-host', mem: 42 * MB, age: 600000 - 1 }]);
 });

@@ -28,6 +28,21 @@ export function timeLeft(resetsAt: number | null, now: number): string | null {
   if (resetsAt === null) return null
   const minutes = Math.floor((resetsAt - now) / 60_000)
   if (minutes <= 0) return null
+
+  return duration(minutes)
+}
+
+/** How long something has been running: `7d`, `3h`, `12m`, `<1m`. */
+export function age(ms: number): string {
+  const minutes = Math.floor(ms / 60_000)
+  if (minutes < 1) return '<1m'
+  if (minutes >= 1440) return `${Math.floor(minutes / 1440)}d`
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}h`
+
+  return `${minutes}m`
+}
+
+function duration(minutes: number): string {
   if (minutes >= 1440) return `${Math.floor(minutes / 1440)}d${Math.floor((minutes % 1440) / 60)}h`
   if (minutes >= 60) return `${Math.floor(minutes / 60)}h${minutes % 60}m`
 

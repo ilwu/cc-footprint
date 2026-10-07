@@ -24,12 +24,12 @@ test('the ps listing becomes the table, command lines with spaces included', () 
   const { table, ttys } = darwin.parsePs(text, NOW);
   assert.equal(table.length, 4);
   assert.deepEqual(table[1], {
-    pid: 268, ppid: 1, mem: 355264 * 1024, born: NOW - 3723 * 1000, name: 'claude', mcp: false,
+    pid: 268, ppid: 1, mem: 355264 * 1024, born: NOW - 3723 * 1000, name: 'claude', mcp: null,
   });
   assert.equal(table[2].name, 'node');
-  assert.equal(table[2].mcp, true);
+  assert.equal(table[2].mcp, 'server-mcp');
   assert.equal(table[3].name, 'sh');
-  assert.equal(table[3].mcp, true); // the age rule in proctree.js sorts that out
+  assert.equal(table[3].mcp, 'mcp'); // the age rule in proctree.js sorts that out
   assert.equal(ttys.get(268), '/dev/ttys001');
   assert.equal(ttys.has(1), false);
 });

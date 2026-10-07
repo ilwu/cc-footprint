@@ -6,7 +6,9 @@
 //   prepare(configDir)           once, at startup
 //   collect(sessionPids, done)   done(err, { table, clock, cols, systemPct })
 //
-// table      rows of { pid, ppid, mem, born, name, mcp } (see proctree.js)
+// table      rows of { pid, ppid, mem, born, name, mcp } (see proctree.js);
+//            mcp is the server's short name (collectors/mcp.js), null for
+//            any other process
 // clock      "now" on the clock `born` is measured on, ms
 // cols       Map pid -> terminal columns, for the session processes
 // systemPct  machine memory in use, 0-100, or null when unknown

@@ -1,10 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { Part, Session, View } from '../types'
+import type { Outside, Part, Session, View } from '../types'
 import {
   NEAR_COMPACT,
   REARM,
+  age,
   allot,
   compactNotice,
   compactShare,
@@ -32,8 +33,7 @@ type MonitorContext = { tokens: number; turn: number; parts: Part[] }
 type MonitorSessions = {
   sessions: Session[]
   claude_total: number
-  mcp_orphans?: number
-  mcp_orphan_mem?: number
+  outside?: Outside[]
 }
 
 /** One of the tray app's answers, or null when it is not running. */
@@ -76,8 +76,7 @@ async function snapshot($: EngineInterface): Promise<View> {
     }),
     sessions: sessions?.sessions ?? [],
     memoryTotal: sessions?.claude_total ?? null,
-    orphans: sessions?.mcp_orphans ?? 0,
-    orphanMem: sessions?.mcp_orphan_mem ?? 0,
+    outside: sessions?.outside ?? [],
     hasMonitor: context !== null || sessions !== null,
   }
 }
@@ -240,6 +239,10 @@ export const register: Register = on => {
       const narrow = Math.max(8, Math.min(24, columns - 34))
       const own = now.sessions.find(one => one.session === now.sessionId)
       const servers = (count: number) => `${count} MCP server${count === 1 ? '' : 's'}`
+      // Left behind by a session, or another program's (Chrome's bridge, the
+      // desktop app): memory no session of ours is using
+      const outsideMem = now.outside.reduce((sum, one) => sum + one.mem, 0)
+      const outsideWidth = now.outside.reduce((most, one) => Math.max(most, one.name.length), 0)
       // What this session's memory is besides the claude process itself
       const children =
         own?.self !== undefined && own.procs !== undefined && own.procs > 1
@@ -355,10 +358,18 @@ export const register: Register = on => {
                 {one.mcp_count ? `  (${servers(one.mcp_count)} ${memory(one.mcp_mem ?? 0)})` : ''}
               </Text>
             ))}
-            {now.orphans > 0 && (
-              <Text bold>
-                ! {servers(now.orphans)} left running by a process that is gone: {memory(now.orphanMem)}
-              </Text>
+            {now.outside.length > 0 && (
+              <Box flexDirection="column" marginTop={1}>
+                <Text bold>
+                  {servers(now.outside.length)} outside every session: {memory(outsideMem)}
+                </Text>
+                {now.outside.map(one => (
+                  <Text dimColor>
+                    {'  '}
+                    {memory(one.mem).padStart(5)} {one.name.padEnd(outsideWidth)}  up {age(one.age)}
+                  </Text>
+                ))}
+              </Box>
             )}
             {!now.hasMonitor && (
               <Text dimColor>The cc-footprint tray app is not running: no memory figures, no breakdown.</Text>

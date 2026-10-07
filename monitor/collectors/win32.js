@@ -9,15 +9,16 @@
 //
 // Script output, one record per line:
 //   T,<now>                                       the script's clock, ms
-//   P,<pid>,<ppid>,<workingSet>,<born>,<mcp>,<name>   every process; <mcp> is
-//                                                 1 when the command line
-//                                                 names an MCP server
+//   P,<pid>,<ppid>,<workingSet>,<born>,<name>     every process
+//   M,<pid>,<command line>                        the processes whose command
+//                                                 line names an MCP server
 //   W,<pid>,<cols>                                a claude.exe's terminal width
 
 const { exec } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const mcp = require('./mcp');
 
 const SCRIPT = `
 $ErrorActionPreference = 'SilentlyContinue'
@@ -54,9 +55,8 @@ function GW($s) {
 foreach ($p in $procs) {
   $born = 0
   if ($p.CreationDate) { $born = [int64]($p.CreationDate.ToFileTimeUtc() / 10000) }
-  $mcp = 0
-  if ($p.CommandLine -match 'mcp|modelcontextprotocol') { $mcp = 1 }
-  "P,$($p.ProcessId),$($p.ParentProcessId),$($p.WorkingSetSize),$born,$mcp,$($p.Name)"
+  "P,$($p.ProcessId),$($p.ParentProcessId),$($p.WorkingSetSize),$born,$($p.Name)"
+  if ($p.CommandLine -match '${mcp.MCP.source}') { "M,$($p.ProcessId),$($p.CommandLine -replace '[\\r\\n]', ' ')" }
   if ($p.Name -eq 'claude.exe') { "W,$($p.ProcessId),$(GW $p.ProcessId)" }
 }
 `.trim();
@@ -72,6 +72,37 @@ function prepare(configDir) {
   } catch {}
 }
 
+// The script's records -> { table, clock, cols }
+function parseOutput(stdout) {
+  const table = [];
+  const cols = new Map();
+  const servers = new Map(); // pid -> the MCP server's short name
+  let clock = 0;
+
+  for (const line of stdout.split('\n')) {
+    const parts = line.trim().split(',');
+    if (parts[0] === 'P' && parts.length >= 6) {
+      const pid = parseInt(parts[1]), mem = parseInt(parts[3]);
+      if (isNaN(pid) || isNaN(mem)) continue;
+      table.push({
+        pid, ppid: parseInt(parts[2]) || 0, mem, born: parseInt(parts[4]) || 0,
+        name: parts.slice(5).join(','), mcp: null,
+      });
+    } else if (parts[0] === 'M' && parts.length >= 3) {
+      servers.set(parseInt(parts[1]), mcp.label(parts.slice(2).join(',')) || null);
+    } else if (parts[0] === 'W' && parts.length >= 3) {
+      const pid = parseInt(parts[1]), width = parseInt(parts[2]);
+      if (width > 0) cols.set(pid, width);
+    } else if (parts[0] === 'T') {
+      clock = parseInt(parts[1]) || 0;
+    }
+  }
+  for (const p of table) {
+    if (servers.has(p.pid)) p.mcp = servers.get(p.pid);
+  }
+  return { table, clock, cols };
+}
+
 // done(err, { table, clock, cols, systemPct }); see collectors/index.js
 function collect(sessionPids, done) {
   const systemPct = Math.round((1 - os.freemem() / os.totalmem()) * 100);
@@ -80,29 +111,9 @@ function collect(sessionPids, done) {
     { timeout: 15000, windowsHide: true },
     (err, stdout) => {
       if (err) return done(err);
-      const table = [];
-      const cols = new Map();
-      let clock = 0;
-
-      for (const line of stdout.split('\n')) {
-        const parts = line.trim().split(',');
-        if (parts[0] === 'P' && parts.length >= 7) {
-          const pid = parseInt(parts[1]), mem = parseInt(parts[3]);
-          if (isNaN(pid) || isNaN(mem)) continue;
-          table.push({
-            pid, ppid: parseInt(parts[2]) || 0, mem, born: parseInt(parts[4]) || 0,
-            mcp: parts[5] === '1', name: parts.slice(6).join(','),
-          });
-        } else if (parts[0] === 'W' && parts.length >= 3) {
-          const pid = parseInt(parts[1]), width = parseInt(parts[2]);
-          if (width > 0) cols.set(pid, width);
-        } else if (parts[0] === 'T') {
-          clock = parseInt(parts[1]) || 0;
-        }
-      }
-      done(null, { table, clock, cols, systemPct });
+      done(null, { ...parseOutput(stdout), systemPct });
     }
   );
 }
 
-module.exports = { prepare, collect };
+module.exports = { prepare, collect, parseOutput };
