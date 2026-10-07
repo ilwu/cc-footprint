@@ -221,7 +221,7 @@ Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對�
 }
 ```
 
-`lang` 是工具列選單和 `/footprint` 面板的語言：`auto` 跟著系統，或指定 `en`、`de`、`es`、`fr`、`ja`、`ko`、`zh-CN`、`zh-TW`；系統語言沒有對應的就用英文。macOS 登入時自動啟動的背景程式拿不到系統語言，`auto` 會是英文，請在選單自己選。工具列選單的 **Language** 可以切換（這一項在每種語言都叫 Language，選錯了也找得回來）。狀態列的縮寫（`Ctx`、`5h`、`Sys`…）在每種語言都一樣。英文和繁中以外的用字是初稿，歡迎指正。
+`lang` 是工具列選單和 `/footprint` 面板的語言：`auto` 跟著系統，或指定 `en`、`de`、`es`、`fr`、`ja`、`ko`、`pt-BR`、`zh-CN`、`zh-TW`；系統語言沒有對應的就用英文。macOS 登入時自動啟動的背景程式拿不到系統語言，`auto` 會是英文，請在選單自己選。工具列選單的 **Language** 可以切換（這一項在每種語言都叫 Language，選錯了也找得回來）。狀態列的縮寫（`Ctx`、`5h`、`Sys`…）在每種語言都一樣。英文和繁中以外的用字是初稿，歡迎指正。
 
 背景程式監聽 `127.0.0.1:19823`。要改連接埠，編輯 `monitor/app.js` 裡的 `PORT`，以及 `statusline/statusline.sh` 和 `plugin/hooks/register.tsx` 裡對應的埠號。
 

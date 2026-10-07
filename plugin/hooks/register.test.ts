@@ -349,7 +349,7 @@ test('figures of an unforeseen shape leave the pane one line and the way to read
 })
 
 test('every language the monitor offers has its words here', () => {
-  expect(LANGS.sort()).toEqual(['de', 'en', 'es', 'fr', 'ja', 'ko', 'zh-CN', 'zh-TW'])
+  expect(LANGS.sort()).toEqual(['de', 'en', 'es', 'fr', 'ja', 'ko', 'pt-BR', 'zh-CN', 'zh-TW'])
   // One the plugin lacks falls back to English
   expect(strings('xx').opened).toBe('Footprint pane opened.')
 })

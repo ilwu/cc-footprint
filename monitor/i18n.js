@@ -22,7 +22,9 @@ function loadTables(dir) {
 
 // A locale (zh-Hant-TW, ja-JP, ko, en-US-POSIX, ...) -> the code of a table
 // we have, or 'en'. Chinese goes by its script: traditional where it says
-// so or is the region's (Taiwan, Hong Kong, Macau), simplified otherwise.
+// so or is the region's (Taiwan, Hong Kong, Macau), simplified otherwise;
+// another language goes by its region where there is a table for that,
+// else by the language (pt-PT -> pt-BR).
 function fromLocale(locale, codes) {
   if (!locale) return 'en';
   const parts = String(locale).replace(/_/g, '-').split('-');
@@ -35,7 +37,9 @@ function fromLocale(locale, codes) {
     return codes.includes(code) ? code : 'en';
   }
   if (exact) return exact;
-  return codes.find(c => c.toLowerCase() === lang) || 'en';
+  // The language alone, or the one table of it for another region
+  // (pt-PT reads pt-BR rather than English)
+  return codes.find(c => c.toLowerCase() === lang) || codes.find(c => c.toLowerCase().split('-')[0] === lang) || 'en';
 }
 
 // dir: the folder of tables; osLocale: the system's, as Intl reports it

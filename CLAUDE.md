@@ -67,7 +67,7 @@ None of these formats is documented; `test/fixtures/` holds a capture of each, w
 
 ## Languages
 
-English, German, Spanish, French, Japanese, Korean, and Simplified and Traditional Chinese. `config.json`'s `lang` is `auto` (the system's locale, read by the monitor with `Intl`; Chinese by script, anything without a table English) or a code; the tray's Language menu sets it, and is called Language in every language so that a wrong choice can be undone.
+English, German, Spanish, French, Brazilian Portuguese, Japanese, Korean, and Simplified and Traditional Chinese. `config.json`'s `lang` is `auto` (the system's locale, read by the monitor with `Intl`; Chinese by script, another region of a language the one table it has (pt-PT gets pt-BR), anything without a table English) or a code; the tray's Language menu sets it, and is called Language in every language so that a wrong choice can be undone.
 
 - The monitor's words (the tray) are in `monitor/i18n/<code>.json`, one file per language; the Language menu lists every file under the name it gives itself (`_name`). `i18n.test.js` holds every file to English's keys and placeholders.
 - The plugin's words are in `plugin/hooks/strings.ts`: a hooks module cannot read a JSON file, and the two share no phrase. Every language there is typed against English, so a missing phrase does not type-check. The plugin learns the language from `/sessions` (`lang`) and keeps the last one in `$.store`, so the pane stays in it while the monitor is down.

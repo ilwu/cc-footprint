@@ -45,13 +45,13 @@ test('every item has its label in English, and every English key is used', () =>
   assert.deepEqual(Object.keys(en).filter(k => k.startsWith('item.')).sort(), ITEMS.map(i => 'item.' + i.id).sort());
 });
 
-test('the system locale picks a table, Chinese by its script, anything else English', () => {
+test('the system locale picks a table, Chinese by its script, another region the one table of its language, anything else English', () => {
   const codes = Object.keys(tables);
   const cases = {
     'zh-TW': 'zh-TW', 'zh-Hant-TW': 'zh-TW', 'zh-HK': 'zh-TW', 'zh-Hant': 'zh-TW',
     'zh-CN': 'zh-CN', 'zh-Hans-TW': 'zh-CN', 'zh-SG': 'zh-CN', zh: 'zh-CN',
     'ja-JP': 'ja', 'ko-KR': 'ko', 'en-US': 'en', 'en-US-POSIX': 'en', '': 'en',
-    'de-DE': 'de', 'de-AT': 'de', 'fr-FR': 'fr', 'fr-CA': 'fr', 'es-ES': 'es', 'es-MX': 'es', 'pt-BR': 'en', 'it-IT': 'en',
+    'de-DE': 'de', 'de-AT': 'de', 'fr-FR': 'fr', 'fr-CA': 'fr', 'es-ES': 'es', 'es-MX': 'es', 'pt-BR': 'pt-BR', 'pt-PT': 'pt-BR', pt: 'pt-BR', 'it-IT': 'en',
   };
   for (const [locale, code] of Object.entries(cases)) assert.equal(fromLocale(locale, codes), code, locale);
 });
