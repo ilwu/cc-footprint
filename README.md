@@ -12,6 +12,12 @@
 
 cc-footprint is for all three.
 
+<p align="center">
+  <img src="screenshots/demo.gif" alt="Reading three log files adds 127k tokens in one turn: the statusline shows it at once, a toast names the cause, and /footprint opens the breakdown" width="100%">
+</p>
+
+*Three log files read in one turn add 127k tokens: the statusline shows the jump as it happens, a toast says how much and what from, and `/footprint` opens the breakdown.*
+
 Every Claude Code session has a footprint: the **context** it carries and the **RAM** it holds. cc-footprint measures both and puts them back in that session's own statusline — what is filling the context, which session is eating the memory — so you can see it, and so you can shrink it. How much you see is up to you: the statusline shows only the items you tick, a toast speaks up only when something happens, and a pane opens only when you want the details.
 
 <p>

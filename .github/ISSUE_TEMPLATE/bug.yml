@@ -1,0 +1,39 @@
+name: Bug report
+description: Something shows a wrong figure, nothing at all, or an installer fails
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and version
+      placeholder: Windows 11 24H2 / Ubuntu 24.04 / macOS 26
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Claude Code and Node.js versions
+      description: "`claude --version` and `node --version`"
+      placeholder: 2.1.292 / v22.20.0
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: What the background program says
+      description: >
+        Open http://127.0.0.1:19823/status in a browser and paste it here
+        (it lists your sessions' process ids and figures, no names or
+        folders). "Not running" is an answer too.
+      render: json
+  - type: textarea
+    id: statusline
+    attributes:
+      label: The statusline as it shows, if it is involved
+      description: A screenshot or the text. Mask project names you would rather not share.

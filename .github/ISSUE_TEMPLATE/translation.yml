@@ -1,0 +1,29 @@
+name: Translation fix
+description: A word in the tray menu or the /footprint pane that reads wrong in your language
+labels: [translation]
+body:
+  - type: dropdown
+    id: lang
+    attributes:
+      label: Language
+      options:
+        - Deutsch (de)
+        - Español (es)
+        - Français (fr)
+        - Português (Brasil) (pt-BR)
+        - 日本語 (ja)
+        - 한국어 (ko)
+        - 简体中文 (zh-CN)
+        - 繁體中文 (zh-TW)
+        - A language that is not there yet
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: What it says, and what it should say
+      description: >
+        The tray menu's words are in monitor/i18n/<code>.json, the pane's in
+        plugin/hooks/strings.ts. A pull request is welcome too.
+    validations:
+      required: true

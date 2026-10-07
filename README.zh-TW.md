@@ -12,6 +12,12 @@
 
 讓 cc-footprint 幫你解決這些問題。
 
+<p align="center">
+  <img src="screenshots/demo.zh-TW.gif" alt="一輪讀了三個日誌檔，context 多了 127k：狀態列當下就看得到，接著跳提示說明原因，/footprint 打開明細" width="100%">
+</p>
+
+*一輪讀了三個日誌檔，context 就多了 127k：狀態列當下看得到這一跳，接著跳出提示，說漲了多少、從哪來，`/footprint` 再打開明細。*
+
 每個 Claude Code session 都有自己的 footprint：背著的 **context**，和佔著的 **RAM**。cc-footprint 把這兩樣量出來，放回那個 session 自己的狀態列 — 是什麼在塞 context、是哪個 session 在吃記憶體，看得到，也就降得下來。要看多少由你決定：狀態列只放你勾的，有事才跳提示，想看明細再打開面板。
 
 <p>

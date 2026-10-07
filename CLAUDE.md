@@ -90,7 +90,7 @@ English, German, Spanish, French, Brazilian Portuguese, Japanese, Korean, and Si
 
 - `README.md` and `README.zh-TW.md` mirror each other section by section: change both.
 - `scripts/optional.js` names the README section "Hand browser work to a subagent"; keep it in step.
-- Images: `screenshots/social-preview.png` is rendered from `social-preview.html` (its header says how) and uploaded by hand under GitHub Settings → Social preview; `banner.png` is its top 1280×380. `cc-footprint.png` and `tray-menu.png` (and their `.zh-TW.png` twins, which README.zh-TW.md shows) are screenshots of a real session: before publishing one, mask the names of other sessions in it, and keep each README's caption in step with what its image shows. `monitor/icon.*` come from `scripts/make-icon.py`.
+- Images: `screenshots/social-preview.png` is rendered from `social-preview.html` (its header says how) and uploaded by hand under GitHub Settings → Social preview; `banner.png` is its top 1280×380. `cc-footprint.png` and `tray-menu.png` (and their `.zh-TW.png` twins, which README.zh-TW.md shows) are screenshots of a real session: before publishing one, mask the names of other sessions in it, and keep each README's caption in step with what its image shows. `demo.gif` (`demo.zh-TW.gif` the same with Chinese labels) is a screen recording of a real session asked to read three ~80 KB generated log files in full; ffmpeg made it: up to the toast at 3× speed and after it at 1.5×, 8 fps, 960 px wide, 96 colours, under 1 MB, with yellow boxes and labels (`drawbox`, `drawtext`) on the statusline's jump and on the toast. `monitor/icon.*` come from `scripts/make-icon.py`.
 
 ## Key commands
 
