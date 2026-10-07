@@ -304,7 +304,8 @@ export const register: Register = on => {
 
       const used = now.tokens !== null && now.window > 0 ? (100 * now.tokens) / now.window : 0
       const isNear = compactShare(now) >= NEAR_COMPACT
-      const turn = now.turn !== null && now.turn !== 0 ? s.thisTurn(now.turn > 0 ? '↑' : '↓', tokens(Math.abs(now.turn))) : ''
+      const turn =
+        now.turn !== null && now.turn !== 0 ? s.thisTurn(now.turn > 0 ? '↑' : '↓', tokens(Math.abs(now.turn))) : ''
       const compact =
         now.compactAt !== null && now.tokens !== null
           ? s.compactAt(tokens(now.compactAt), tokens(Math.max(0, now.compactAt - now.tokens)))
@@ -357,13 +358,20 @@ export const register: Register = on => {
               )}
               {meter(used, inner)}
               {(turn !== '' || compact !== '') &&
-                spread(<Text dimColor>{turn}</Text>, <Text dimColor={!isNear} color={isNear ? 'yellow' : undefined}>{compact}</Text>)}
+                spread(
+                  <Text dimColor>{turn}</Text>,
+                  <Text dimColor={!isNear} color={isNear ? 'yellow' : undefined}>
+                    {compact}
+                  </Text>,
+                )}
               {groups.length > 0 && (
                 <Box flexDirection="column" marginTop={1}>
                   <Text dimColor>{s.whatFills}</Text>
                   <Box>
                     {segments.map(one => (
-                      <Text key={one.group.key} color={one.group.color}>{'█'.repeat(one.cells)}</Text>
+                      <Text key={one.group.key} color={one.group.color}>
+                        {'█'.repeat(one.cells)}
+                      </Text>
                     ))}
                   </Box>
                   {rows.map((row, i) => (
@@ -378,64 +386,70 @@ export const register: Register = on => {
           )}
 
           {now.limits.length > 0 && rule(s.limits)}
-          {now.limits.map(limit => {
-            const left = timeLeft(limit.resetsAt, now.at)
+          {now.limits.length > 0 && (
+            <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
+              {now.limits.map(limit => {
+                const left = timeLeft(limit.resetsAt, now.at)
 
-            return spread(
-              <Box flexDirection="row" columnGap={1}>
-                <Text>{padTo(LIMITS[limit.kind] ?? limit.kind, 5)}</Text>
-                {meter(limit.percentUsed, narrow)}
-                <Text>{String(Math.round(limit.percentUsed)).padStart(3)}%</Text>
-              </Box>,
-              <Text dimColor>{left === null ? '' : s.resetsIn(left)}</Text>,
-              limit.kind,
-            )
-          })}
+                return spread(
+                  <Box flexDirection="row" columnGap={1}>
+                    <Text>{padTo(LIMITS[limit.kind] ?? limit.kind, 5)}</Text>
+                    {meter(limit.percentUsed, narrow)}
+                    <Text>{String(Math.round(limit.percentUsed)).padStart(3)}%</Text>
+                  </Box>,
+                  <Text dimColor>{left === null ? '' : s.resetsIn(left)}</Text>,
+                  limit.kind,
+                )
+              })}
+            </Box>
+          )}
 
           {rule(s.memory)}
-          {!now.hasMonitor && <Text dimColor>{s.noMonitor}</Text>}
-          {own !== undefined && (
-            <Box flexDirection="row" columnGap={1}>
-              <Text color="cyan" inverse>{` ${s.thisBadge} `}</Text>
-              <Text bold>{memory(own.mem)}</Text>
-              {own.self !== undefined && own.procs !== undefined && own.procs > 1 && (
-                <Box flexGrow={1}>
-                  <Text dimColor wrap="truncate-end">
-                    {s.children(memory(own.self), own.procs - 1, memory(own.mem - own.self)) +
-                      (own.mcp_count ? s.ofIt(s.servers(own.mcp_count), memory(own.mcp_mem ?? 0)) : '')}
-                  </Text>
-                </Box>
-              )}
-            </Box>
-          )}
-          {others.map(one =>
-            spread(
-              <Box flexDirection="row" columnGap={1} paddingLeft={2}>
-                <Text>{memory(one.mem).padStart(5)}</Text>
-                <Text wrap="truncate-end">{one.name || folder(one.cwd)}</Text>
-              </Box>,
-              <Text dimColor>{one.mcp_count ? `${s.servers(one.mcp_count)} ${memory(one.mcp_mem ?? 0)}` : ''}</Text>,
-              one.session,
-            ),
-          )}
-          {now.outside.length > 0 && (
-            <Box flexDirection="column" marginTop={1}>
-              <Text>{s.outside(s.servers(now.outside.length), memory(outsideMem))}</Text>
-              {now.outside.map(one =>
-                spread(
-                  <Box flexDirection="row" columnGap={1} paddingLeft={2}>
-                    <Text>{memory(one.mem).padStart(5)}</Text>
-                    <Text wrap="truncate-end">{one.name}</Text>
-                  </Box>,
-                  // A week or more is worth a look, as in /nod
-                  <Text dimColor={one.age < 7 * 86_400_000} color={one.age >= 7 * 86_400_000 ? 'yellow' : undefined}>
-                    {s.up(age(one.age))}
-                  </Text>,
-                  `outside-${one.pid}`,
-                ),
-              )}
-            </Box>
-          )}
+          <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
+            {!now.hasMonitor && <Text dimColor>{s.noMonitor}</Text>}
+            {own !== undefined && (
+              <Box flexDirection="row" columnGap={1}>
+                <Text color="cyan" inverse>{` ${s.thisBadge} `}</Text>
+                <Text bold>{memory(own.mem)}</Text>
+                {own.self !== undefined && own.procs !== undefined && own.procs > 1 && (
+                  <Box flexGrow={1}>
+                    <Text dimColor wrap="truncate-end">
+                      {s.children(memory(own.self), own.procs - 1, memory(own.mem - own.self)) +
+                        (own.mcp_count ? s.ofIt(s.servers(own.mcp_count), memory(own.mcp_mem ?? 0)) : '')}
+                    </Text>
+                  </Box>
+                )}
+              </Box>
+            )}
+            {others.map(one =>
+              spread(
+                <Box flexDirection="row" columnGap={1} paddingLeft={2}>
+                  <Text>{memory(one.mem).padStart(5)}</Text>
+                  <Text wrap="truncate-end">{one.name || folder(one.cwd)}</Text>
+                </Box>,
+                <Text dimColor>{one.mcp_count ? `${s.servers(one.mcp_count)} ${memory(one.mcp_mem ?? 0)}` : ''}</Text>,
+                one.session,
+              ),
+            )}
+            {now.outside.length > 0 && (
+              <Box flexDirection="column" marginTop={1}>
+                <Text>{s.outside(s.servers(now.outside.length), memory(outsideMem))}</Text>
+                {now.outside.map(one =>
+                  spread(
+                    <Box flexDirection="row" columnGap={1} paddingLeft={2}>
+                      <Text>{memory(one.mem).padStart(5)}</Text>
+                      <Text wrap="truncate-end">{one.name}</Text>
+                    </Box>,
+                    // A week or more is worth a look, as in /nod
+                    <Text dimColor={one.age < 7 * 86_400_000} color={one.age >= 7 * 86_400_000 ? 'yellow' : undefined}>
+                      {s.up(age(one.age))}
+                    </Text>,
+                    `outside-${one.pid}`,
+                  ),
+                )}
+              </Box>
+            )}
+          </Box>
 
           <Box flexDirection="row" columnGap={2} marginTop={1}>
             {refresh}
