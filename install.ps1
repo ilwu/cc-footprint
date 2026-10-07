@@ -141,8 +141,13 @@ if ($result -eq "same") {
 # ── Startup shortcut ─────────────────────────────────────────────
 Write-Host "[4/6] Creating startup shortcut..." -ForegroundColor Yellow
 
+# The shell's own answer for the Startup folder is empty where the profile
+# is not fully loaded (a service, a CI runner): then the standard place
 $ws = New-Object -ComObject WScript.Shell
 $startup = $ws.SpecialFolders("Startup")
+if (-not $startup) { $startup = [Environment]::GetFolderPath("Startup") }
+if (-not $startup) { $startup = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup" }
+if (-not (Test-Path $startup)) { New-Item -ItemType Directory -Path $startup -Force | Out-Null }
 $shortcutPath = Join-Path $startup "cc-footprint.lnk"
 $shortcut = $ws.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = Join-Path $monitorDir "start.vbs"

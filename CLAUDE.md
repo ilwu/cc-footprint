@@ -78,8 +78,8 @@ cd monitor && node --test
 docker run --rm -v "<repo>:/repo:ro" node:22-bookworm bash /repo/test/smoke.sh
 
 # The same script runs in CI on all three platforms (SMOKE_SERVICE=1 goes
-# through systemd or launchd). On Windows it is CI-only: the installer writes
-# the real Startup folder and the uninstaller ends whatever holds port 19823.
+# through systemd or launchd). On Windows it is CI-only: the uninstaller ends
+# whatever holds port 19823, the machine's own monitor included.
 # No Mac hardware: the menu bar icon is not visible in CI and is unverified
 ```
 

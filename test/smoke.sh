@@ -9,8 +9,8 @@
 #                                       or a launchd agent; CI only, see below
 #
 # On Windows it runs under Git Bash, installs with Windows PowerShell 5.1 (as
-# install.ps1 is mostly run) and is for CI only: the installer writes the
-# real Startup folder, and the uninstaller ends whatever holds port 19823.
+# install.ps1 is mostly run) and is for CI only: the uninstaller ends
+# whatever holds port 19823, a monitor of the machine's own included.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,7 +19,7 @@ tmp_home=""
 is_mac() { [[ "$(uname -s)" == Darwin ]]; }
 is_win() { [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; }
 if is_win && [[ "${CI:-}" != true ]]; then
-  echo "on Windows this test takes the Startup folder and port 19823 of the machine, so it runs under CI only" >&2
+  echo "on Windows this test ends whatever holds port 19823, so it runs under CI only" >&2
   exit 2
 fi
 if [[ -n "${SMOKE_SERVICE:-}" ]]; then
@@ -37,8 +37,13 @@ else
   mkdir "$HOME"
   # The throwaway HOME is not where systemd or launchd look for units
   export CC_FOOTPRINT_NO_SERVICE=1
-  # The installer and the monitor read USERPROFILE on Windows
-  is_win && export USERPROFILE="$(cygpath -w "$HOME")"
+  # The installer and the monitor read USERPROFILE on Windows; the Startup
+  # folder is under APPDATA, which the throwaway home gets too, so that no
+  # shortcut lands in the machine's own
+  if is_win; then
+    export USERPROFILE="$(cygpath -w "$HOME")"
+    export APPDATA="$USERPROFILE\\AppData\\Roaming"
+  fi
 fi
 # The home as a command line names it: C:/... on Windows
 home_cmd="$HOME"

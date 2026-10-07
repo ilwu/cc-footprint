@@ -35,8 +35,11 @@ if ($port) {
 
 # ── Remove startup shortcut ──────────────────────────────────────
 Write-Host "[2/6] Removing startup shortcut..." -ForegroundColor Yellow
+# Resolved as the installer resolves it (see install.ps1)
 $ws = New-Object -ComObject WScript.Shell
 $startup = $ws.SpecialFolders("Startup")
+if (-not $startup) { $startup = [Environment]::GetFolderPath("Startup") }
+if (-not $startup) { $startup = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup" }
 $shortcutPath = Join-Path $startup "cc-footprint.lnk"
 if (Test-Path $shortcutPath) {
     Remove-Item $shortcutPath -Force
