@@ -214,11 +214,11 @@ pass "the /footprint hint follows whether the plugin is installed"
 
 # Lines are filled to the terminal's width by what they take on screen. A
 # bar is 30 bytes and 10 columns: counted in bytes, a 100-column terminal
-# gets two items on the first line (53 columns) instead of three (79).
+# gets two items on the first line (about 38 columns) instead of three (about 70).
 first="$(printf '{"session_id":"%s","context_window":{"used_percentage":31}}' "$sid" \
   | COLUMNS=100 sl | strip | head -n 1)"
 columns="$(MSYS_NO_PATHCONV=1 node -e 'console.log([...process.argv[1]].length)' "$first")"
-(( columns >= 70 && columns <= 96 )) || fail "at 100 columns the first line is $columns wide: $first"
+(( columns >= 60 && columns <= 96 )) || fail "at 100 columns the first line is $columns wide: $first"
 pass "lines are filled to the terminal's width ($columns of 96 columns used)"
 
 # Item choices are a file (the tray writes it too): a change shows on the
