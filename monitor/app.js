@@ -27,7 +27,7 @@ const ITEMS = [
   { id: 'ctx',        label: 'Context Window',            group: 'usage',   default: true  },
   { id: 'ctx_grow',   label: 'Context: Growth This Turn', group: 'usage',   default: true  },
   { id: 'ctx_src',    label: 'Context: Top Source',       group: 'usage',   default: false },
-  { id: 'mcp_use',    label: 'MCP Usage Share',           group: 'usage',   default: true  },
+  { id: 'ctx_mcp',    label: 'Context: MCP Share',        group: 'usage',   default: true  },
   { id: 'five_hour',  label: '5h Usage',                  group: 'usage',   default: true  },
   { id: 'week',       label: 'Weekly Usage',              group: 'usage',   default: true  },
   { id: 'resets',     label: 'Limit Reset Countdown',     group: 'usage',   default: true  },
@@ -204,40 +204,13 @@ function pidForSession(sid) {
   return pid;
 }
 
-// ── Session usage from transcripts ───────────────────────────────────
-// Two things Claude Code does not pass to the statusline are derived by
-// tailing the session's transcript .jsonl files (only newly appended
-// bytes are read):
-//
-// - MCP usage share: the share of the session's cost-weighted usage that
-//   went to requests which consumed an MCP tool result — the rule /usage
-//   applies per MCP server, scoped here to one session (its subagents
-//   included).
-// - Context composition: what the main conversation's window is filled
-//   with and how much the current turn added (see context.js). Subagents
-//   have windows of their own, so only the main transcript counts.
+// ── Context composition from the transcript ──────────────────────────
+// What the main conversation's window is filled with and how much the
+// current turn added (see context.js), worked out by tailing the session's
+// transcript .jsonl: only newly appended bytes are read. Subagents have
+// windows of their own, so only the main transcript counts.
 const PROJECTS_DIR = path.join(process.env.USERPROFILE || process.env.HOME, '.claude', 'projects');
-const sessionUsage = new Map(); // sessionId -> { main, subDir, files: Map(path -> file state) }
-
-// $ per million tokens: [input, output, cache read, 5m cache write, 1h cache write].
-// Only the ratios matter, and mostly when a session mixes models
-// (e.g. a cheaper subagent model).
-const MODEL_PRICE = [
-  [/haiku/,  [1, 5, 0.10, 1.25, 2]],
-  [/sonnet/, [2, 10, 0.20, 2.50, 4]],
-  [/opus/,   [4, 20, 0.20, 5, 8]],
-  [/fable/,  [10, 50, 0.25, 12.50, 20]],
-];
-const DEFAULT_PRICE = MODEL_PRICE[2][1];
-
-function weigh(u, model) {
-  let p = DEFAULT_PRICE;
-  for (const [re, price] of MODEL_PRICE) if (re.test(model || '')) { p = price; break; }
-  const w1h = (u.cache_creation || {}).ephemeral_1h_input_tokens || 0;
-  const w5m = (u.cache_creation_input_tokens || 0) - w1h;
-  return p[0] * (u.input_tokens || 0) + p[1] * (u.output_tokens || 0)
-    + p[2] * (u.cache_read_input_tokens || 0) + p[3] * w5m + p[4] * w1h;
-}
+const sessionUsage = new Map(); // sessionId -> { file, offset, rest, ctx }
 
 function findTranscript(sid) {
   let dirs;
@@ -250,49 +223,21 @@ function findTranscript(sid) {
 }
 
 function processLine(st, line) {
-  const isAssistant = line.includes('"type":"assistant"');
-  // Context tracking also needs prompts and compaction boundaries
-  const forContext = st.ctx && (line.includes('"type":"user"') || line.includes('"compact_boundary"'));
-  if (!isAssistant && !forContext && !line.includes('"tool_result"')) return;
+  // Responses, prompts and tool results, and compaction boundaries
+  if (!line.includes('"type":"assistant"') && !line.includes('"type":"user"') && !line.includes('"compact_boundary"')) return;
   let j;
   try { j = JSON.parse(line); } catch { return; }
-  if (st.ctx) context.track(st.ctx, j);
-  const msg = j.message;
-  if (!msg) return;
-
-  if (j.type === 'assistant' && msg.usage && msg.id) {
-    // One API response spans several lines (one per content block), each
-    // repeating the usage so far — keep the latest per message id.
-    let m = st.msgs.get(msg.id);
-    if (!m) {
-      m = { w: 0, mcp: st.pending };
-      st.pending = false;
-      st.msgs.set(msg.id, m);
-    }
-    const w = weigh(msg.usage, msg.model);
-    st.total += w - m.w;
-    if (m.mcp) st.mcp += w - m.w;
-    m.w = w;
-    for (const c of msg.content || []) {
-      if (c.type === 'tool_use' && typeof c.name === 'string' && c.name.startsWith('mcp__')) st.mcpIds.add(c.id);
-    }
-  } else if (j.type === 'user' && Array.isArray(msg.content)) {
-    for (const c of msg.content) {
-      if (c.type === 'tool_result' && st.mcpIds.delete(c.tool_use_id)) st.pending = true;
-    }
-  }
+  context.track(st.ctx, j);
 }
 
-function tailTranscript(s, file) {
-  let st = s.files.get(file);
+function tailTranscript(st) {
   let fd;
   try {
-    fd = fs.openSync(file, 'r');
+    fd = fs.openSync(st.file, 'r');
     const size = fs.fstatSync(fd).size;
-    if (!st || size < st.offset) {
-      st = { offset: 0, rest: Buffer.alloc(0), msgs: new Map(), mcpIds: new Set(), pending: false, total: 0, mcp: 0,
-             ctx: file === s.main ? context.create() : null };
-      s.files.set(file, st);
+    if (size < st.offset) {
+      // Rewritten from the start: read it all again
+      st.offset = 0; st.rest = Buffer.alloc(0); st.ctx = context.create();
     }
     if (size === st.offset) return;
     const buf = Buffer.alloc(size - st.offset);
@@ -311,34 +256,17 @@ function tailTranscript(s, file) {
   }
 }
 
-// The session's transcript state, read up to date; null with no transcript
+// The session's context state, read up to date; null with no transcript
 function readUsage(sid) {
-  let s = sessionUsage.get(sid);
-  if (!s) {
-    const main = findTranscript(sid);
-    if (!main) return null;
-    s = { main, subDir: path.join(path.dirname(main), sid, 'subagents'), files: new Map() };
-    sessionUsage.set(sid, s);
+  let st = sessionUsage.get(sid);
+  if (!st) {
+    const file = findTranscript(sid);
+    if (!file) return null;
+    st = { file, offset: 0, rest: Buffer.alloc(0), ctx: context.create() };
+    sessionUsage.set(sid, st);
   }
-  tailTranscript(s, s.main);
-  try {
-    for (const f of fs.readdirSync(s.subDir)) {
-      if (f.endsWith('.jsonl')) tailTranscript(s, path.join(s.subDir, f));
-    }
-  } catch {}
-  return s;
-}
-
-function mainContext(s) {
-  const st = s.files.get(s.main);
-  return st ? st.ctx : null;
-}
-
-// Percentage (0-100), or null when the session has no usage yet
-function mcpUsePct(s) {
-  let total = 0, mcp = 0;
-  for (const st of s.files.values()) { total += st.total; mcp += st.mcp; }
-  return total > 0 ? Math.round(100 * mcp / total) : null;
+  tailTranscript(st);
+  return st;
 }
 
 // Throttled so a stale session file can't make every render spawn PowerShell
@@ -428,14 +356,14 @@ function answer(req, res) {
     // statusline render has data instead of waiting a full interval.
     if (pid !== undefined && !store.has(pid)) collectSoon();
     const status = statusFor(pid);
-    if (config.mcp_use || config.ctx_grow || config.ctx_src) {
+    if (config.ctx_grow || config.ctx_src || config.ctx_mcp) {
       const usage = readUsage(s[1]);
-      if (config.mcp_use) status.mcp_use = usage ? mcpUsePct(usage) : null;
-      const ctx = usage && context.summarize(mainContext(usage));
+      const ctx = usage && context.summarize(usage.ctx);
       if (ctx) {
         status.ctx_turn = ctx.turn;
         status.ctx_src = ctx.src;
         status.ctx_src_pct = ctx.src_pct;
+        status.ctx_mcp_pct = ctx.mcp_pct;
       }
     }
     return res.end(JSON.stringify(status));
@@ -445,7 +373,7 @@ function answer(req, res) {
   const c = req.url.match(/^\/context\/([0-9a-fA-F-]+)$/);
   if (c) {
     const usage = readUsage(c[1]);
-    return res.end(JSON.stringify(usage ? context.detail(mainContext(usage)) : null));
+    return res.end(JSON.stringify(usage ? context.detail(usage.ctx) : null));
   }
 
   // GET /status/:pid — single session + summary + display config

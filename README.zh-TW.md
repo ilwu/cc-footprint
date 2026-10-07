@@ -25,17 +25,17 @@
 
 ## 它告訴你什麼
 
-### Context：多滿、這一步加了多少、是什麼在塞、代價是什麼
+### Context：多滿、這一步加了多少、是什麼在塞、MCP 佔多少
 
 每一次請求都會把整段 context 重讀一遍。越滿，每一輪越貴、額度燒得越快，也越早被自動壓縮、開始遺失前面的細節。cc-footprint 讓你在它咬人之前就看到：
 
 - **多滿** — `Ctx ▊▊▊▊▊▊▊░░░ 72%`。
 - **這一步加了多少** — `↑15k`：這一輪到目前為止塞進 context 的 token，一輪吃掉視窗 5% 以上會變黃。讀完一個檔案、跑完一個指令突然跳一大段，當下就知道是哪一步。
 - **是什麼在塞** — `(files 29%)`：最大的來源和它的佔比。來源分成 Claude 的輸出、思考、讀檔、指令輸出、搜尋、網頁、子代理、你的提示、壓縮摘要，以及每一個 MCP server。
-- **MCP 花了多少** — `MCP$ 41%`：本 session 的費用裡，花在「用到 MCP 工具結果的請求」上的比例（含子代理）。瀏覽器操作特別容易把這個數字推高：每次點擊、讀頁都把整段對話重讀一遍。
+- **MCP 佔多少** — 條後面的 `mcp 18%`，條裡也有這麼多格是 MCP 的顏色：視窗裡被 MCP 工具結果佔掉的比例，所有 server 加在一起。瀏覽器操作特別容易把這個數字推高，一頁一頁往上疊。
 - **代價** — `5h 34% 2h13m`、`Week 52% 4d21h`：兩個額度用了多少、距離重置多久；也可以顯示 session 累計花費。
 
-Claude Code 內建的 `/usage` 也會把費用歸到 MCP server，但那是跨所有 session 的 24 小時／7 天總計。這裡的數字是這一個 session、即時的，就在你本來就在看的地方。
+Claude Code 內建的 `/context` 也看得到組成，但要你去問它。這裡的數字是這一個 session、即時的，就在你本來就在看的地方。
 
 ### RAM：哪個 session 最重
 
@@ -127,7 +127,7 @@ cd cc-footprint
 | `Ctx` 快滿 | 大改動**之前**先 `/compact` 或開新 session，別做到一半被壓縮 |
 | `↑` 跳一大段 | 剛才那步太貴 — 下次一次少讀一點，指令輸出先過濾 |
 | 來源是 `think` | 調低 effort（`/effort`） |
-| 來源是某個 MCP server，或 `MCP$` 高 | 把那類工作交給子代理（下面） |
+| `mcp` 佔比高，或最大來源是某個 MCP server | 把那類工作交給子代理（下面） |
 | 某個 session 的 `Claude` 特別重 | 關掉或重開（`claude --resume <id>` 接回）；`outside` 裡關掉的 session 留下的那些，直接在工作管理員結束（`/footprint` 看得出是哪些） |
 | 額度快撞上限 | 先做重要的，暫停不急的 session；重置只剩幾分鐘就等一下 |
 
@@ -143,7 +143,7 @@ cd cc-footprint
 2. 把 `claude/global-rule.md` 的完整內容（含頭尾的 `<!-- cc-footprint:browser-agent:start/end -->` 標記）貼到 `~/.claude/CLAUDE.md` 最後面，原有內容保留。標記要一起貼，移除程式才找得到並只移除這一段。
 3. 重開已經開著的 Claude Code session。
 
-效果用 `MCP$` 看。想換子代理的模型，改 `browser.md` 裡的 `model:`。
+效果看 `Ctx` 後面的 `mcp` 佔比。想換子代理的模型，改 `browser.md` 裡的 `model:`。
 
 **給 AI 助手**：如果是 AI 助手（例如 Claude Code）幫使用者安裝，跑完安裝程式後**先詢問使用者**是否要套用這段，得到同意才做；套用時先讀現有的 `~/.claude/CLAUDE.md` 和 `~/.claude/agents/`，用合併的方式加入，不要覆蓋。安裝程式在 Claude Code 裡執行時，也會在輸出最後印出同樣的指示。
 
@@ -157,7 +157,7 @@ cd cc-footprint
 | Context Window | Context 使用率 % + 進度條 | 快滿時會自動壓縮、前面的細節可能遺失；大改動前先 `/compact` 或開新 session。Context 越長，每次請求也越貴 | 開 |
 | Context: Growth This Turn | 接在 `Ctx` 後面的 `↑15k` — 這一輪到目前為止加進 context 的 token（反而變小時是 `↓`；壓縮後重新算起）；單一輪吃掉視窗 5% 以上會變黃 | 當下就看出哪一步很貴，不用等到 90% 才發現 | 開 |
 | Context: Top Source | 接在 `Ctx` 後面的 `(files 29%)` — 最大的來源和佔比：`output`（Claude 的回覆和工具呼叫）、`think`、`files`、`shell`、`search`、`web`、`agents`、`prompts`、`summary`（壓縮之後），或某個 MCP server 的名字 | 知道該改什麼，見[然後怎麼降下來](#然後怎麼降下來) | 關 |
-| MCP Usage Share | `MCP$` — 本 session 的費用中，花在「用到 MCP 工具結果的請求」上的比例（含子代理）；還沒用過 MCP 工具時是 0% | Ctx 漲得很快時，提醒你可能是花太多在瀏覽器操作上。比例高就把瀏覽器工作交給子代理，套用後也用它確認有沒有降 | 開 |
+| Context: MCP Share | 接在 `Ctx` 後面的 `mcp 18%`，條裡也有這麼多格是 MCP 的顏色 — 視窗裡被 MCP 工具結果佔掉的比例，所有 server 加在一起；還沒用過 MCP 工具時不顯示 | Ctx 漲得很快時，提醒你可能是花太多在瀏覽器操作上。比例高就把瀏覽器工作交給子代理，套用後也用它確認有沒有降 | 開 |
 | 5h Usage | 5 小時用量上限 %（訂閱方案；Claude Code 沒提供時自動隱藏） | 快撞到上限前，先把重要的工作做完，暫停不急的 session | 開 |
 | Weekly Usage | 7 天用量上限 %（和 5 小時的一樣，沒提供時自動隱藏） | 安排這週剩下的額度；用得太快就把大任務延後，或改用較便宜的模型 | 開 |
 | Limit Reset Countdown | 接在 `5h` 和 `Week` 後面，距離額度重置還有多久（`2h13m`、`4d21h`） | 決定要等重置，還是繼續做 | 開 |
@@ -181,7 +181,7 @@ cd cc-footprint
 │  每 60 秒：讀一次行程表（Windows CIM / Linux /proc / macOS ps），│
 │  把每個 session 的行程樹加起來（MCP server、工具的 shell）     │
 │  讀取   ~/.claude/sessions/*.json      (session → PID)        │
-│         ~/.claude/projects/**/*.jsonl  (MCP$ 與 context 組成) │
+│         ~/.claude/projects/**/*.jsonl  (context 組成)         │
 │  提供   /session/:id  /context/:id  /sessions  /config        │
 │  設定   ~/.cc-footprint/config.json                           │
 └───────────────────────────────────────────────────────────────┘
@@ -204,7 +204,7 @@ Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對�
 ```json
 {
   "sys_mem": true, "claude_mem": true, "mcp_mem": true,
-  "ctx": true, "ctx_grow": true, "ctx_src": false, "mcp_use": true,
+  "ctx": true, "ctx_grow": true, "ctx_src": false, "ctx_mcp": true,
   "five_hour": true, "week": true, "resets": true, "cost": false,
   "session_id": true, "path": true, "plugin_hint": true,
   "model": false, "lines": false, "duration": false

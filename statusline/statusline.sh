@@ -89,15 +89,15 @@ if [[ -n "$sid" && -n "$ask" ]]; then
 fi
 
 # Parse API response
-sys_pct="" cld_total="" sess_mem="" mcp_total="" mcp_count="" mcp_use="" display=""
-ctx_turn="" ctx_src="" ctx_src_pct="" mcp_outside="" mcp_outside_mem="" plugin=""
+sys_pct="" cld_total="" sess_mem="" mcp_total="" mcp_count="" display=""
+ctx_turn="" ctx_src="" ctx_src_pct="" ctx_mcp_pct="" mcp_outside="" mcp_outside_mem="" plugin=""
 if [[ -n "$resp" ]]; then
   [[ "$resp" =~ \"system_pct\":([0-9]+) ]]    && sys_pct="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"claude_total\":([0-9]+) ]]   && cld_total="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"mem\":([0-9]+) ]]            && sess_mem="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"mcp_total\":([0-9]+) ]]      && mcp_total="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"mcp_count\":([0-9]+) ]]      && mcp_count="${BASH_REMATCH[1]}"
-  [[ "$resp" =~ \"mcp_use\":([0-9]+) ]]        && mcp_use="${BASH_REMATCH[1]}"
+  [[ "$resp" =~ \"ctx_mcp_pct\":([0-9]+) ]]    && ctx_mcp_pct="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"mcp_outside\":([0-9]+) ]]    && mcp_outside="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"mcp_outside_mem\":([0-9]+) ]] && mcp_outside_mem="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"plugin\":(true|false) ]]     && plugin="${BASH_REMATCH[1]}"
@@ -171,13 +171,20 @@ pct_color() {
   else PC=$GRN; fi
 }
 
-# Percentage -> 10-cell progress bar in BAR (also sets PC)
+# Percentage -> 10-cell progress bar in BAR (also sets PC). The last $2 of
+# the filled cells, when given, are in the MCP colour: the context bar draws
+# the share MCP tool results take that way.
 bar() {
-  local pct=${1:-0} i
+  local pct=${1:-0} mcp=${2:-0} i
   local filled=$((pct / 10)) empty=$((10 - pct / 10))
+  ((mcp > filled)) && mcp=$filled
   pct_color "$pct"
   BAR="$PC"
-  for ((i=0; i<filled; i++)); do BAR+="▊"; done
+  for ((i=0; i<filled-mcp; i++)); do BAR+="▊"; done
+  if ((mcp > 0)); then
+    BAR+="${MAG}"
+    for ((i=0; i<mcp; i++)); do BAR+="▊"; done
+  fi
   BAR+="${DIM}"
   for ((i=0; i<empty; i++)); do BAR+="░"; done
   BAR+="${R}"
@@ -255,7 +262,16 @@ if has mcp_mem; then
   [[ -n "$mcp_c" ]] && add_item "$mcp_c" "$mcp_p"
 fi
 if has ctx; then
-  bar "${ctx:-0}"
+  # The share of the window that MCP tool results take, as cells of the bar
+  # and as a number: the monitor says their share of what is in use, Claude
+  # Code how much of the window that is
+  mcp_win="" mcp_cells=0
+  if has ctx_mcp && [[ -n "$ctx_mcp_pct" && -n "$ctx" ]] && ((ctx_mcp_pct > 0)); then
+    mcp_win=$(( (ctx * ctx_mcp_pct + 50) / 100 ))
+    mcp_cells=$(( (mcp_win + 5) / 10 ))
+    ((mcp_win > 0)) || mcp_win=""
+  fi
+  bar "${ctx:-0}" "$mcp_cells"
   ctx_c="Ctx ${BAR} ${ctx:-?}%"; ctx_p="Ctx ########## ${ctx:-?}%"
   # What this turn has added to the context so far (↓ when it has shrunk
   # instead; a compaction starts the count again); yellow once one turn
@@ -265,18 +281,14 @@ if has ctx; then
     if ((${ctx_win:-0} > 0 && ctx_turn * 20 >= ctx_win)); then gc=$YLW; else gc=$DIM; fi
     ctx_c+=" ${gc}${grow}${R}"; ctx_p+=" ^${TOK}"
   fi
+  if [[ -n "$mcp_win" ]]; then
+    ctx_c+=" ${MAG}mcp ${mcp_win}%${R}"; ctx_p+=" mcp ${mcp_win}%"
+  fi
   # The largest thing in the context and its share of it
   if has ctx_src && [[ -n "$ctx_src" ]]; then
     ctx_c+=" ${DIM}(${ctx_src} ${ctx_src_pct}%)${R}"; ctx_p+=" (${ctx_src} ${ctx_src_pct}%)"
   fi
   add_item "$ctx_c" "$ctx_p"
-fi
-# Share of this session's usage spent on requests that consumed MCP tool
-# results. Shows 0% before any MCP tool is used; hidden only when the
-# monitor has no number (no transcript yet, or monitor unreachable).
-if has mcp_use && [[ -n "$mcp_use" ]]; then
-  bar "$mcp_use"
-  add_item "${PC}MCP\$${R} ${BAR} ${PC}${mcp_use}%${R}" "MCP\$ ########## ${mcp_use}%"
 fi
 # With `resets` on, each limit is followed by the time left until it resets
 if has five_hour && [[ -n "$five" ]]; then

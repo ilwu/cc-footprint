@@ -13,9 +13,8 @@ monitor/app.js (Node.js)              statusline/statusline.sh (Bash)
 │   collectors/linux.js (/proc)
 │   collectors/darwin.js (ps + vm_stat)
 ├─ session→PID: ~/.claude/sessions/<pid>.json
-├─ MCP$ share + context composition: tail ~/.claude/projects/**/<sid>.jsonl
-│   (MCP$ includes subagents/; composition reads the main thread only,
-│    algorithm in monitor/context.js)
+├─ Context composition: tail ~/.claude/projects/**/<sid>.jsonl
+│   (the main thread only; algorithm in monitor/context.js)
 └─ Config: ~/.cc-footprint/           └─ Monitor down: only what Claude Code itself reports
 ```
 

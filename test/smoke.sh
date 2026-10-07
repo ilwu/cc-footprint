@@ -106,12 +106,15 @@ mkdir -p "$HOME/.claude/sessions" "$HOME/.claude/projects/-work-api"
 # monitor holds a process younger than its session file to be another one
 printf '{"pid":%s,"sessionId":"%s","cwd":"/work/api","name":"smoke","startedAt":%s}\n' "$session_pid" "$sid" "$(( $(date +%s) * 1000 ))" \
   > "$HOME/.claude/sessions/$session_pid.json"
-# Two responses: the context grows from 50k to 62k, 2k of it the first answer
+# Three responses: the context grows from 50k to 68k; 2k of it is the first
+# answer, 10k a file it read, 5.9k a page an MCP tool read
 cat > "$HOME/.claude/projects/-work-api/$sid.jsonl" <<EOF
 {"type":"user","message":{"role":"user","content":"hello"}}
 {"type":"assistant","message":{"id":"m1","model":"claude-opus","content":[{"type":"tool_use","id":"t1","name":"Read","input":{}}],"usage":{"input_tokens":50000,"output_tokens":2000}}}
 {"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"file text"}]}}
-{"type":"assistant","message":{"id":"m2","model":"claude-opus","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":62000,"output_tokens":100}}}
+{"type":"assistant","message":{"id":"m2","model":"claude-opus","content":[{"type":"tool_use","id":"t2","name":"mcp__chrome__read_page","input":{}}],"usage":{"input_tokens":62000,"output_tokens":100}}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"page text"}]}}
+{"type":"assistant","message":{"id":"m3","model":"claude-opus","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":68000,"output_tokens":50}}}
 EOF
 
 # A setting of the person's own, to see that the installer keeps the rest
@@ -148,8 +151,9 @@ mem="$(field "$status" mem)"; self="$(field "$status" self)"; procs="$(field "$s
 (( mem >= 110 * MB )) || fail "tree memory $mem is less than the 120 MB the stand-ins hold: $status"
 (( self >= 70 * MB && self < mem )) || fail "self $self should be the parent alone: $status"
 (( procs >= 2 )) || fail "expected the child in the tree, procs=$procs"
-[[ "$(field "$status" ctx_turn)" == 12100 ]] || fail "ctx_turn should be 12100: $status"
+[[ "$(field "$status" ctx_turn)" == 18050 ]] || fail "ctx_turn should be 18050: $status"
 [[ "$(field "$status" ctx_src)" == files ]] || fail "ctx_src should be files: $status"
+[[ "$(field "$status" ctx_mcp_pct)" == 9 ]] || fail "ctx_mcp_pct should be 9 (5.9k of 68k): $status"
 [[ "$(field "$status" system_pct)" =~ ^[0-9]+$ ]] || fail "no system memory figure: $status"
 pass "the session's tree is measured: $((mem / MB))M in $procs processes, $((self / MB))M of it the session itself"
 
@@ -162,10 +166,14 @@ line="$(printf '{"session_id":"%s","workspace":{"project_dir":"/work/api"},"cont
   | sl | strip)"
 printf '%s\n' "$line" | sed 's/^/     /'
 [[ "$line" == *"Claude $((mem / MB))M/"* ]] || fail "the statusline does not show the session's memory"
-[[ "$line" == *"31% ↑12k"* ]] || fail "the statusline does not show this turn's growth"
+# MCP's 9% of what is in use is 3% of a window that is 31% full
+[[ "$line" == *"31% ↑18k mcp 3%"* ]] || fail "the statusline does not show this turn's growth and MCP's share"
 [[ "$line" == *"34% 2h13m"* ]] || fail "the statusline does not show the reset countdown"
 [[ "$line" == *"/work/api"* ]] || fail "the statusline does not show the project path"
-pass "the statusline prints memory, growth and the reset countdown"
+# With the window 90% full MCP's share is 8%, one cell of the bar in its colour
+raw="$(printf '{"session_id":"%s","context_window":{"used_percentage":90}}' "$sid" | sl)"
+[[ "$raw" == *$'\033[35m▊'* ]] || fail "no cell of the context bar is in the MCP colour: $raw"
+pass "the statusline prints memory, growth, MCP's share of the context and the reset countdown"
 
 # The command as settings.json has it, run through a shell as Claude Code
 # runs it: whatever the path to the script holds, it has to get there whole

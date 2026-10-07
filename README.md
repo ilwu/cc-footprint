@@ -25,17 +25,17 @@ Every Claude Code session has a footprint: the **context** it carries and the **
 
 ## What it tells you
 
-### Context: how full, what this step added, what fills it, what it costs
+### Context: how full, what this step added, what fills it, what MCP takes
 
 Every request re-reads the whole context. The fuller it is, the more each turn costs, the faster the limits burn, and the sooner auto-compaction kicks in and earlier details are lost. cc-footprint shows it before it bites:
 
 - **How full** — `Ctx ▊▊▊▊▊▊▊░░░ 72%`.
 - **What this step added** — `↑15k`: the tokens this turn has put into the context so far; yellow when one turn takes 5% of the window or more. A file read or a command that suddenly adds a big chunk is caught the moment it happens.
 - **What fills it** — `(files 29%)`: the largest source and its share. Sources are Claude's output, thinking, file reads, command output, searches, web pages, subagents, your prompts, the compaction summary, and each MCP server by name.
-- **What MCP costs** — `MCP$ 41%`: the share of this session's spend that went to requests using MCP tool results (subagents included). Browser work pushes this up quickly: every click and page read re-reads the whole conversation.
+- **What MCP takes** — `mcp 18%` after the bar, and that much of the bar in the MCP colour: the share of the window that MCP tool results hold, every server together. Browser work pushes this up quickly, a page at a time.
 - **The price** — `5h 34% 2h13m`, `Week 52% 4d21h`: how much of each limit is used and how long until it resets; the session's running cost can be shown too.
 
-Claude Code's own `/usage` also attributes spend to MCP servers, but as 24-hour and 7-day totals across all sessions. These figures are for this one session, live, where you are already looking.
+Claude Code's own `/context` shows a breakdown too, when you ask for it. These figures are for this one session, live, where you are already looking.
 
 ### RAM: which session is the heavy one
 
@@ -127,7 +127,7 @@ Once you have the figures:
 | `Ctx` nearly full | `/compact` or start a new session **before** a large change, not halfway through it |
 | `↑` jumps | That step was expensive — next time read less at once, filter command output first |
 | The top source is `think` | Lower the effort (`/effort`) |
-| The top source is an MCP server, or `MCP$` is high | Hand that kind of work to a subagent (below) |
+| `mcp` takes a large share, or the top source is an MCP server | Hand that kind of work to a subagent (below) |
 | One session's `Claude` is far heavier | Close or restart it (`claude --resume <id>` picks it up); of the `outside` servers, end the ones a closed session left behind (`/footprint` names them) |
 | A limit is nearly used up | Finish what matters, pause the sessions that can wait; with minutes to the reset, wait |
 
@@ -143,7 +143,7 @@ It changes Claude Code's **global** setup under `~/.claude/` and affects every p
 2. Append the whole of `claude/global-rule.md`, including its `<!-- cc-footprint:browser-agent:start/end -->` markers, to the end of `~/.claude/CLAUDE.md`, keeping what is there. The markers must come along: the uninstaller finds this block by them and removes only it.
 3. Restart the Claude Code sessions that are open.
 
-Watch `MCP$` for the effect. To change the subagent's model, edit `model:` in `browser.md`.
+Watch the `mcp` share of `Ctx` for the effect. To change the subagent's model, edit `model:` in `browser.md`.
 
 **For AI assistants**: if an AI assistant (Claude Code, say) is installing this for someone, **ask them first** whether to apply this section after the installer has run, and apply it only with their consent; read the existing `~/.claude/CLAUDE.md` and `~/.claude/agents/` first and merge, never overwrite. The installer prints the same instructions at the end of its output when it runs inside Claude Code.
 
@@ -157,7 +157,7 @@ Watch `MCP$` for the effect. To change the subagent's model, edit `model:` in `b
 | Context Window | Context usage % with a bar | Near full, auto-compaction kicks in and earlier details may be lost; `/compact` or a new session before a large change. A longer context also makes every request cost more | On |
 | Context: Growth This Turn | `↑15k` after `Ctx` — the tokens this turn has added to the context so far (`↓` when it has shrunk instead; a compaction starts the count again); yellow when one turn takes 5% of the window or more | See which step was expensive as it happens, not at 90% | On |
 | Context: Top Source | `(files 29%)` after `Ctx` — the largest source and its share: `output` (Claude's replies and tool calls), `think`, `files`, `shell`, `search`, `web`, `agents`, `prompts`, `summary` (after a compaction), or an MCP server's name | Know what to change; see [Then shrink it](#then-shrink-it) | Off |
-| MCP Usage Share | `MCP$` — the share of this session's spend that went to requests using MCP tool results (subagents included); 0% until an MCP tool is used | When `Ctx` grows fast, a reminder that browser work may be the cause. High: hand browser work to a subagent, and watch it again after | On |
+| Context: MCP Share | `mcp 18%` after `Ctx`, and that much of its bar in the MCP colour — the share of the window that MCP tool results hold, every server together; nothing until an MCP tool is used | When `Ctx` grows fast, a reminder that browser work may be the cause. High: hand browser work to a subagent, and watch it again after | On |
 | 5h Usage | 5-hour limit % (subscription plans; hidden when Claude Code does not report it) | Finish what matters before the limit, pause the sessions that can wait | On |
 | Weekly Usage | 7-day limit % (hidden like the 5-hour one) | Plan the week's remaining allowance; going fast, postpone the big tasks or use a cheaper model | On |
 | Limit Reset Countdown | After `5h` and `Week`, the time until each limit resets (`2h13m`, `4d21h`) | Decide whether to wait for the reset or carry on | On |
@@ -182,7 +182,7 @@ Watch `MCP$` for the effect. To change the subagent's model, edit `model:` in `b
 │  / macOS ps) and add up each session's tree (MCP servers,     │
 │  tool shells)                                                 │
 │  Reads   ~/.claude/sessions/*.json      (session → PID)       │
-│          ~/.claude/projects/**/*.jsonl  (MCP$, composition)   │
+│          ~/.claude/projects/**/*.jsonl  (context composition) │
 │  Serves  /session/:id  /context/:id  /sessions  /config       │
 │  Config  ~/.cc-footprint/config.json                          │
 └───────────────────────────────────────────────────────────────┘
@@ -207,7 +207,7 @@ The tray or menu bar menu writes `~/.cc-footprint/config.json`; on Linux you edi
 ```json
 {
   "sys_mem": true, "claude_mem": true, "mcp_mem": true,
-  "ctx": true, "ctx_grow": true, "ctx_src": false, "mcp_use": true,
+  "ctx": true, "ctx_grow": true, "ctx_src": false, "ctx_mcp": true,
   "five_hour": true, "week": true, "resets": true, "cost": false,
   "session_id": true, "path": true, "plugin_hint": true,
   "model": false, "lines": false, "duration": false

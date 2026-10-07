@@ -169,14 +169,17 @@ function detail(c) {
   return { tokens: c.size + c.out, turn: c.size + c.out - c.turnStart, parts };
 }
 
-// What the statusline shows: this turn's growth and the largest source.
-// `base` and `system` are left out of the ranking — the person cannot do
-// anything about them mid-session.
+// What the statusline shows: this turn's growth, the largest source, and
+// the share of what is in use that MCP tool results take (every server
+// together). `base` and `system` are left out of the ranking — the person
+// cannot do anything about them mid-session.
 function summarize(c) {
   const d = detail(c);
   if (!d) return null;
   const top = d.parts.find(p => p.name !== 'base' && p.name !== 'system' && p.pct > 0);
-  return { turn: d.turn, src: top ? top.name : null, src_pct: top ? top.pct : null };
+  let mcp = 0;
+  for (const [k, v] of Object.entries(c.cats)) if (k.startsWith('mcp:')) mcp += v;
+  return { turn: d.turn, src: top ? top.name : null, src_pct: top ? top.pct : null, mcp_pct: Math.round(100 * mcp / c.size) };
 }
 
 module.exports = { create, track, detail, summarize };
