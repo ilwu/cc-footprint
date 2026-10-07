@@ -96,7 +96,9 @@ bash statusline/statusline.sh < test/fixtures/statusline-input.json
 # paths); the monitor is out of reach there, so this shows the fallback
 docker run --rm -i -v "<repo>:/repo:ro" bash:3.2 bash /repo/statusline/statusline.sh < test/fixtures/statusline-input.json
 
-# Unit tests (process tree, collectors, context composition)
+# Unit tests: every monitor module but app.js and tray.js, the /session keys
+# the statusline reads (api.test.js), and the item list kept the same in its
+# five places (consistency.test.js)
 cd monitor && node --test
 
 # The whole flow (install → measure → statusline → uninstall) on Linux, in
@@ -115,7 +117,7 @@ What to run for a change:
 
 | Changed | Run |
 |---|---|
-| `proctree.js`, `context.js`, a collector | `node --test` in `monitor/` |
+| any monitor module, an item, a README config block | `node --test` in `monitor/` |
 | `statusline.sh` | the fixture through it, then under `bash:3.2`; the smoke test |
 | `app.js`, `api.js`, `tray.js`, the installers, `scripts/` | the smoke test in Docker; CI for Windows and macOS |
 | `plugin/` | `claude plugin validate plugin --strict`, `claude plugin test plugin`, type-check (below) |
