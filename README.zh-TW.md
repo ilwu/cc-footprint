@@ -94,7 +94,7 @@ cd cc-footprint
 3. 把 `settings.json` 的 `statusLine` 指向它 — 原本有自己的會先備份成 `*.bak`；`settings.json` 其他內容和 key 的順序不動
 4. 設定登入時自動啟動背景程式：Windows 是啟動捷徑，Linux 是 systemd 使用者服務，macOS 是 launchd agent
 5. 啟動背景程式
-6. 從這份 clone 安裝 plugin。Claude Code 會依版本另存一份：`git pull` 之後執行 `claude plugin update cc-footprint@cc-footprint` 換成新版，已開著的 session 用 `/reload-plugins` 或重開就會套用。不要的話 `.\install.ps1 -NoPlugin` 或 `./install.sh --no-plugin`
+6. 從這份 clone 安裝 plugin。Claude Code 直接從 clone 載入它，所以 `git pull` 之後，已開著的 session 用 `/reload-plugins` 或重開就是新版。不要的話 `.\install.ps1 -NoPlugin` 或 `./install.sh --no-plugin`
 7. 列出可選的全域設定（見[瀏覽器操作交給子代理](#瀏覽器操作交給子代理)）— 只列出，不替你套用
 
 重跑安裝程式是安全的：先停掉執行中的背景程式，更新檔案，再重新啟動。
@@ -111,10 +111,9 @@ cd cc-footprint
 ```bash
 git pull
 ./install.sh        # Windows 用 .\install.ps1
-claude plugin update cc-footprint@cc-footprint
 ```
 
-安裝程式會換上新的狀態列，用新版重新啟動背景程式；`config.json` 裡選好的項目會保留。`claude plugin update` 在 plugin 有新版時換上新版；已開著的 session 用 `/reload-plugins` 或重開就會套用。
+安裝程式會換上新的狀態列，用新版重新啟動背景程式；`config.json` 裡選好的項目會保留。plugin 是從 clone 讀的，已開著的 session 用 `/reload-plugins` 或重開就是新版。（沒有 clone、用 `/plugin marketplace add ilwu/cc-footprint` 裝的：`claude plugin update cc-footprint@cc-footprint`。）
 
 ### 移除
 

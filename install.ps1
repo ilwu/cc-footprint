@@ -195,10 +195,9 @@ if (-not $response) {
 }
 
 # ── Claude Code plugin ───────────────────────────────────────────
-# This folder is a plugin marketplace. Claude Code installs a copy of the
-# plugin from it, under its version: after a git pull that changed the
-# version, "claude plugin update cc-footprint@cc-footprint" takes the new
-# one. Both commands below are
+# This folder is a plugin marketplace. A marketplace added from a local
+# path loads the plugin in place, from this clone's plugin/, so a git pull
+# reaches the sessions on /reload-plugins. Both commands below are
 # idempotent; a marketplace of this name added from GitHub is re-pointed
 # here.
 Write-Host "[6/6] Installing the Claude Code plugin..." -ForegroundColor Yellow

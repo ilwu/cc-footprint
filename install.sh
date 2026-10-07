@@ -175,10 +175,9 @@ if api_up; then ok "Monitor running on 127.0.0.1:$port"
 else warn "Monitor started but its API is not answering yet. It may need a moment."; fi
 
 # ── Claude Code plugin ────────────────────────────────────────────
-# This folder is a plugin marketplace. Claude Code installs a copy of the
-# plugin from it, under its version: after a git pull that changed the
-# version, "claude plugin update cc-footprint@cc-footprint" takes the new
-# one. Both commands below are
+# This folder is a plugin marketplace. A marketplace added from a local
+# path loads the plugin in place, from this clone's plugin/, so a git pull
+# reaches the sessions on /reload-plugins. Both commands below are
 # idempotent; a marketplace of this name added from GitHub is re-pointed
 # here.
 step "[5/5] Installing the Claude Code plugin..."

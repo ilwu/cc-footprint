@@ -94,7 +94,7 @@ Open a Claude Code session and the statusline is there. The installer:
 3. Points `statusLine` in `settings.json` at it — one of your own is backed up as `*.bak` first; the rest of `settings.json` and its key order are left as they are
 4. Makes the background program start when you log in: a startup shortcut on Windows, a systemd user service on Linux, a launchd agent on macOS
 5. Starts it
-6. Installs the plugin from this clone. Claude Code keeps a copy of it per version: after a `git pull`, `claude plugin update cc-footprint@cc-footprint` brings in the new one, and the open sessions pick it up on `/reload-plugins` or a restart. Skip it with `.\install.ps1 -NoPlugin` or `./install.sh --no-plugin`
+6. Installs the plugin from this clone. Claude Code loads it from the clone itself, so after a `git pull` the open sessions pick up the new one on `/reload-plugins` or a restart. Skip it with `.\install.ps1 -NoPlugin` or `./install.sh --no-plugin`
 7. Lists an optional global setting (see [Hand browser work to a subagent](#hand-browser-work-to-a-subagent)) — lists it, does not apply it
 
 Re-running the installer is safe: it stops the running background program, updates the files, and starts it again.
@@ -111,10 +111,9 @@ To have only the plugin on a machine without the clone, inside Claude Code:
 ```bash
 git pull
 ./install.sh        # .\install.ps1 on Windows
-claude plugin update cc-footprint@cc-footprint
 ```
 
-The installer copies the new statusline into place and restarts the background program on the new build; your item choices in `config.json` are kept. `claude plugin update` brings in the plugin's new version, if there is one; open sessions take it on `/reload-plugins` or a restart.
+The installer copies the new statusline into place and restarts the background program on the new build; your item choices in `config.json` are kept. The plugin is read from the clone, so open sessions take the new one on `/reload-plugins` or a restart. (Installed with `/plugin marketplace add ilwu/cc-footprint` instead, without a clone: `claude plugin update cc-footprint@cc-footprint`.)
 
 ### Uninstall
 
