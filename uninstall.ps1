@@ -78,6 +78,9 @@ if ($hasNode -and (Test-Path $settingsFile)) {
         Write-Host "  Your statusLine from before install is in settings.json.bak" -ForegroundColor DarkGray
     }
 }
+if (Test-Path "$statuslineFile.bak") {
+    Write-Host "  Your statusline.sh from before install is in statusline.sh.bak" -ForegroundColor DarkGray
+}
 
 # ── Remove global optimizations ─────────────────────────────────
 # Applied by hand, following the README; the files carry our markers.

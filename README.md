@@ -94,7 +94,7 @@ Open a Claude Code session and the statusline is there. The installer:
 3. Points `statusLine` in `settings.json` at it — one of your own is backed up as `*.bak` first; the rest of `settings.json` and its key order are left as they are
 4. Makes the background program start when you log in: a startup shortcut on Windows, a systemd user service on Linux, a launchd agent on macOS
 5. Starts it
-6. Installs the plugin — from this clone, so `git pull` followed by `/reload-plugins` is the update. Skip it with `.\install.ps1 -NoPlugin` or `./install.sh --no-plugin`
+6. Installs the plugin from this clone. Claude Code keeps a copy of it per version: after a `git pull`, `claude plugin update cc-footprint@cc-footprint` brings in the new one, and the open sessions pick it up on `/reload-plugins` or a restart. Skip it with `.\install.ps1 -NoPlugin` or `./install.sh --no-plugin`
 7. Lists an optional global setting (see [Hand browser work to a subagent](#hand-browser-work-to-a-subagent)) — lists it, does not apply it
 
 Re-running the installer is safe: it stops the running background program, updates the files, and starts it again.

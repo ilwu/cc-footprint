@@ -144,7 +144,14 @@ settings="$(cat "$HOME/.claude/settings.json")"
 sl_command="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).statusLine.command' "$HOME/.claude/settings.json")"
 [[ "$sl_command" == bash*"$home_cmd/.claude/statusline.sh"* ]] || fail "statusLine does not point at our script: $sl_command"
 grep -q 'my-own.sh' "$HOME/.claude/settings.json.bak" || fail "the previous statusLine was not backed up"
-pass "statusLine set, the rest of settings.json kept, the old one backed up"
+# Set to something else since and installed again: the first backup stays
+node -e '
+  const fs = require("fs"), f = process.argv[1], s = JSON.parse(fs.readFileSync(f, "utf8"));
+  s.statusLine.command = "another.sh"; fs.writeFileSync(f, JSON.stringify(s, null, 2));
+' "$HOME/.claude/settings.json"
+node "$root/scripts/statusline-setting.js" set "$HOME/.claude/settings.json" "$home_cmd/.claude/statusline.sh" >/dev/null
+grep -q 'my-own.sh' "$HOME/.claude/settings.json.bak" || fail "a second install overwrote the first backup"
+pass "statusLine set, the rest of settings.json kept, the old one backed up and kept"
 
 status="$(get "/session/$sid")"
 mem="$(field "$status" mem)"; self="$(field "$status" self)"; procs="$(field "$status" procs)"
@@ -184,6 +191,14 @@ line="$(printf '{"session_id":"%s","workspace":{"project_dir":"/work/api"}}' "$s
 line="$(printf '{"session_id":"%s","context_window":{"used_percentage":null},"rate_limits":{"five_hour":{"used_percentage":34}}}' "$sid" | sl | strip)"
 [[ "$line" == *"?% "*"5h "*"34%"* ]] || fail "a context share of null was read from the limits: $line"
 pass "the statusLine command runs as written, and a null context share stays unknown"
+
+# What Claude Code really sends (test/fixtures/README.md), with its session
+# made the stand-in's: every figure lands where it belongs
+line="$(sl < "$root/test/fixtures/statusline-input.json" | strip)"
+[[ "$line" == *"Ctx "*" 49%"* ]] || fail "the real input's context share is not shown: $line"
+[[ "$line" == *"5h "*" 53%"* && "$line" == *"Week "*" 49%"* ]] || fail "the real input's limits are not shown: $line"
+[[ "$line" == *"C:/work/api"* ]] || fail "the real input's project path is not shown: $line"
+pass "the statusline reads the input Claude Code really sends"
 
 # The /footprint hint follows the plugin's state in settings.json: how to get
 # it while it is missing, the command itself once it is enabled

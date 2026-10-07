@@ -113,8 +113,14 @@ $statuslineDst = Join-Path $claudeDir "statusline.sh"
 if (Test-Path $statuslineDst) {
     $head = (Get-Content $statuslineDst -TotalCount 5 -Encoding UTF8) -join "`n"
     if (-not $head.Contains("cc-footprint")) {
-        Copy-Item $statuslineDst "$statuslineDst.bak" -Force
-        Write-Host "  WARNING: $statuslineDst was not ours - backed up to statusline.sh.bak" -ForegroundColor Yellow
+        # The first backup holds what was there before this tool; one that is
+        # already there is kept
+        if (Test-Path "$statuslineDst.bak") {
+            Write-Host "  WARNING: $statuslineDst was not ours - replaced; the earlier statusline.sh.bak is kept" -ForegroundColor Yellow
+        } else {
+            Copy-Item $statuslineDst "$statuslineDst.bak"
+            Write-Host "  WARNING: $statuslineDst was not ours - backed up to statusline.sh.bak" -ForegroundColor Yellow
+        }
     }
 }
 Copy-Item $statuslineSrc $statuslineDst -Force
@@ -178,8 +184,10 @@ if (-not $response) {
 }
 
 # ── Claude Code plugin ───────────────────────────────────────────
-# This folder is a plugin marketplace, so the plugin loads in place from
-# it: a git pull and /reload-plugins is an update. Both commands are
+# This folder is a plugin marketplace. Claude Code installs a copy of the
+# plugin from it, under its version: after a git pull that changed the
+# version, "claude plugin update cc-footprint@cc-footprint" takes the new
+# one. Both commands below are
 # idempotent; a marketplace of this name added from GitHub is re-pointed
 # here.
 Write-Host "[6/6] Installing the Claude Code plugin..." -ForegroundColor Yellow

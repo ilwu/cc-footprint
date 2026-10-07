@@ -11,7 +11,9 @@
 // The script's path is given with forward slashes. Prints one word for the
 // installer to act on:
 //   set    same | added | replaced:<previous command>
-//          (before a replace the file is copied to <settings.json>.bak)
+//          (before a replace the file is copied to <settings.json>.bak,
+//          unless a .bak is there already: the first one holds the setting
+//          from before this tool, and a later install must not lose it)
 //   unset  removed | skip      (skip: the setting there is not ours)
 // Exits 1, the file untouched, when it is not valid JSON.
 
@@ -50,7 +52,7 @@ if (action === 'set') {
   if (previous === command) {
     console.log('same');
   } else {
-    if (previous && !ours) fs.copyFileSync(file, file + '.bak');
+    if (previous && !ours && !fs.existsSync(file + '.bak')) fs.copyFileSync(file, file + '.bak');
     settings.statusLine = { type: 'command', command };
     save();
     console.log(previous && !ours ? 'replaced:' + previous : 'added');

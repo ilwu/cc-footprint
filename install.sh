@@ -80,9 +80,15 @@ kill_monitor
 step "[2/5] Installing statusline..."
 mkdir -p "$claude_dir"
 statusline="$claude_dir/statusline.sh"
+# The first backup holds what was there before this tool; one that is
+# already there is kept
 if [[ -f "$statusline" ]] && ! is_ours "$statusline"; then
-  cp "$statusline" "$statusline.bak"
-  warn "$statusline was not ours - backed up to statusline.sh.bak"
+  if [[ -e "$statusline.bak" ]]; then
+    warn "$statusline was not ours - replaced; the earlier statusline.sh.bak is kept"
+  else
+    cp "$statusline" "$statusline.bak"
+    warn "$statusline was not ours - backed up to statusline.sh.bak"
+  fi
 fi
 cp "$dir/statusline/statusline.sh" "$statusline"
 ok "Copied statusline.sh -> $statusline"
@@ -172,8 +178,10 @@ if api_up; then ok "Monitor running on 127.0.0.1:$port"
 else warn "Monitor started but its API is not answering yet. It may need a moment."; fi
 
 # ── Claude Code plugin ────────────────────────────────────────────
-# This folder is a plugin marketplace, so the plugin loads in place from
-# it: a git pull and /reload-plugins is an update. Both commands are
+# This folder is a plugin marketplace. Claude Code installs a copy of the
+# plugin from it, under its version: after a git pull that changed the
+# version, "claude plugin update cc-footprint@cc-footprint" takes the new
+# one. Both commands below are
 # idempotent; a marketplace of this name added from GitHub is re-pointed
 # here.
 step "[5/5] Installing the Claude Code plugin..."

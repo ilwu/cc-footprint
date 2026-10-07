@@ -67,6 +67,7 @@ if [[ -f "$settings" ]] && command -v node >/dev/null 2>&1; then
   [[ "$result" == removed ]] && ok "Removed statusLine from settings.json"
   [[ -f "$settings.bak" ]] && note "Your statusLine from before install is in settings.json.bak"
 fi
+[[ -f "$statusline.bak" ]] && note "Your statusline.sh from before install is in statusline.sh.bak"
 
 # ── Remove global optimizations ───────────────────────────────────
 # Applied by hand; both pieces carry our markers.
