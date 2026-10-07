@@ -57,7 +57,7 @@ Write-Host "[1/6] Checking prerequisites..." -ForegroundColor Yellow
 # Node.js
 $node = Get-Command node -ErrorAction SilentlyContinue
 if (-not $node) {
-    Write-Host "  ERROR: Node.js not found. Install from https://nodejs.org/" -ForegroundColor Red
+    Write-Host "  ERROR: Node.js not found. Install it from https://nodejs.org/, or ask your AI assistant to check why node is not on the PATH" -ForegroundColor Red
     exit 1
 }
 $nodeVer = (node --version) -replace '^v',''

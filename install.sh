@@ -59,7 +59,7 @@ printf '\n  \033[36mcc-footprint - Installer\033[0m\n  ========================\
 
 # ── Pre-checks ────────────────────────────────────────────────────
 step "[1/5] Checking prerequisites..."
-command -v node >/dev/null 2>&1 || die "Node.js not found. Install it from https://nodejs.org/"
+command -v node >/dev/null 2>&1 || die "Node.js not found. Install it from https://nodejs.org/, or ask your AI assistant to check why node is not on the PATH"
 node -e 'process.exit(+process.versions.node.split(".")[0] >= 18 ? 0 : 1)' \
   || die "Node.js 18 or newer is needed (found $(node --version))"
 ok "Node.js $(node --version)"
