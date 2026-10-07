@@ -215,7 +215,7 @@ The tray or menu bar menu writes `~/.cc-footprint/config.json`; on Linux you edi
 }
 ```
 
-`lang` is the language of the tray menu and the `/footprint` pane: `auto` follows the system's, or one of `en`, `zh-TW`, `zh-CN`, `ja`, `ko`; a system language with no table of its own gets English. The tray's **Language** menu sets it (the menu is called Language in every language, so a wrong choice can be undone). The statusline's short labels (`Ctx`, `5h`, `Sys`, ...) are the same in every language. The Japanese and Korean wording is a first draft — corrections are welcome.
+`lang` is the language of the tray menu and the `/footprint` pane: `auto` follows the system's, or one of `en`, `de`, `es`, `fr`, `ja`, `ko`, `zh-CN`, `zh-TW`; a system language with no table of its own gets English. The tray's **Language** menu sets it (the menu is called Language in every language, so a wrong choice can be undone). The statusline's short labels (`Ctx`, `5h`, `Sys`, ...) are the same in every language. The wording in languages other than English and Traditional Chinese is a first draft — corrections are welcome.
 
 The background program listens on `127.0.0.1:19823`. To change the port, edit `PORT` in `monitor/app.js` and the matching port in `statusline/statusline.sh` and `plugin/hooks/register.tsx`.
 

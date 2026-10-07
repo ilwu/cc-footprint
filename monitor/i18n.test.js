@@ -50,7 +50,8 @@ test('the system locale picks a table, Chinese by its script, anything else Engl
   const cases = {
     'zh-TW': 'zh-TW', 'zh-Hant-TW': 'zh-TW', 'zh-HK': 'zh-TW', 'zh-Hant': 'zh-TW',
     'zh-CN': 'zh-CN', 'zh-Hans-TW': 'zh-CN', 'zh-SG': 'zh-CN', zh: 'zh-CN',
-    'ja-JP': 'ja', 'ko-KR': 'ko', 'en-US': 'en', 'en-US-POSIX': 'en', 'fr-FR': 'en', '': 'en',
+    'ja-JP': 'ja', 'ko-KR': 'ko', 'en-US': 'en', 'en-US-POSIX': 'en', '': 'en',
+    'de-DE': 'de', 'de-AT': 'de', 'fr-FR': 'fr', 'fr-CA': 'fr', 'es-ES': 'es', 'es-MX': 'es', 'pt-BR': 'en', 'it-IT': 'en',
   };
   for (const [locale, code] of Object.entries(cases)) assert.equal(fromLocale(locale, codes), code, locale);
 });
