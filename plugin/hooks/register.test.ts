@@ -228,21 +228,29 @@ test('the pane draws the context, the limits and every session on each surface',
         view: {},
       },
     })
-    expect(await ui.find({ type: 'Text', text: /120k of 200k used \(60%\)/ })).toBeDefined()
+    // The headline: every session and their memory
+    expect(await ui.find({ type: 'Text', text: /^1 session · 2\.0G$/ })).toBeDefined()
+    // The card: how full, this turn, what fills it
+    expect(await ui.find({ type: 'Text', text: /^120k of 200k used$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^60%$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /4k this turn/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /What fills it \(the 120k in use\)/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^What fills it$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /File reads\s+67%\s+60k/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Claude's output\s+33%\s+30k/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Search & web/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /resets in 2h13m/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /800M this session, 2\.0G across 1 session/ })).toBeDefined()
+    // This session under its badge, with what its memory is made of
+    expect(await ui.find({ type: 'Text', text: /this session/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^800M$/ })).toBeDefined()
     expect(
       await ui.find({ type: 'Text', text: /claude 500M \+ 3 child processes 300M, 2 MCP servers 200M of it/ }),
     ).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /api\s+\(2 MCP servers 200M\)/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /2 MCP servers outside every session: 60M/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /42M chrome-native-host\s+up 7d/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /18M mcp-server-git\s+up 3h/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^chrome-native-host$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^up 7d$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^mcp-server-git$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^up 3h$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Esc to close/ })).toBeDefined()
     expect(await ui.find({ key: 'refresh' })).toBeDefined()
     await ui.unmount()
   }
@@ -314,7 +322,7 @@ test('figures of an unforeseen shape leave the pane one line and the way to read
   }))
   on('http.fetch', (_, e) => {
     // A session with neither a name nor a folder to call it by
-    const body = e.url.endsWith('/sessions') ? { sessions: [{ session: 'abc', pid: 1, mem: 1 }], claude_total: 1 } : null
+    const body = e.url.endsWith('/sessions') ? { sessions: [{ session: 'other', pid: 2, mem: 1 }], claude_total: 1 } : null
 
     return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
   })
@@ -385,6 +393,7 @@ test('the pane is drawn in the tray app language, its legend aligned by columns'
     props: { title: 'Footprint', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
   })
   expect(await ui.find({ type: 'Text', text: /コンテキストウィンドウ/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /このセッション/ })).toBeDefined()
   // The legend in Japanese (padTo, tested above, aligns its columns)
   const files = await ui.find({ type: 'Text', text: /ファイル読み込み/ })
   const output = await ui.find({ type: 'Text', text: /Claude の出力/ })

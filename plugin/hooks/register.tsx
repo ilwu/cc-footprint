@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, Timer } from 'claude-code'
+import type { EngineInterface, Register, RenderChildren, Timer } from 'claude-code'
 
 import type { Outside, Part, Session, View } from '../types'
 import {
@@ -134,7 +134,7 @@ export const register: Register = on => {
     try {
       await $.command.register({
         name: 'footprint',
-        description: "Show what fills this session's context and which session holds the RAM",
+        description: strings(await language($, undefined)).description,
       })
     } catch {
       // No /footprint this session; the toasts need no command
@@ -240,6 +240,9 @@ export const register: Register = on => {
     return done
   })
 
+  // The pane, in the manner of /nod: a headline, a dim rule per section, a
+  // rounded card for what matters most (how full the context is and what
+  // fills it), badges in inverse colours, a status pushed to the right edge.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
     // The last language known, for what is drawn before anything is read
@@ -260,20 +263,19 @@ export const register: Register = on => {
       const s = strings(now.lang)
 
       const columns = e.props.bodyColumns ?? e.viewport?.columns ?? 80
-      const wide = Math.max(10, Math.min(60, columns))
-      const narrow = Math.max(8, Math.min(24, columns - 34))
+      // Inside the card: its border and padding take two columns a side
+      const inner = Math.max(20, Math.min(76, columns - 4))
+      const narrow = Math.max(8, Math.min(24, columns - 40))
       const own = now.sessions.find(one => one.session === now.sessionId)
-      // Left behind by a session, or another program's (Chrome's bridge, the
-      // desktop app): memory no session of ours is using
+      const others = now.sessions.filter(one => one.session !== now.sessionId)
       const outsideMem = now.outside.reduce((sum, one) => sum + one.mem, 0)
-      const outsideWidth = now.outside.reduce((most, one) => Math.max(most, width(one.name)), 0)
-      // What this session's memory is besides the claude process itself
-      const children =
-        own?.self !== undefined && own.procs !== undefined && own.procs > 1
-          ? s.children(memory(own.self), own.procs - 1, memory(own.mem - own.self)) +
-            (own.mcp_count ? s.ofIt(s.servers(own.mcp_count), memory(own.mcp_mem ?? 0)) : '')
-          : null
 
+      // ── Section title ────────, as long as the pane is wide
+      const rule = (label: string) => {
+        const head = `── ${label} `
+
+        return <Text dimColor>{head + '─'.repeat(Math.max(4, Math.min(columns, 100) - width(head) - 1))}</Text>
+      }
       // A ratio against its limit: the filled part in ink, the rest a dim
       // track along the baseline. Half a cell high, so two meters on
       // neighbouring rows stay two bars instead of merging into one shape.
@@ -287,114 +289,153 @@ export const register: Register = on => {
           </Box>
         )
       }
+      // A row with its last part pushed to the right edge
+      const spread = (left: RenderChildren, right: RenderChildren, key?: string) => (
+        <Box key={key} flexDirection="row" columnGap={1}>
+          <Box flexGrow={1}>{left}</Box>
+          {right}
+        </Box>
+      )
 
       const used = now.tokens !== null && now.window > 0 ? (100 * now.tokens) / now.window : 0
       const isNear = compactShare(now) >= NEAR_COMPACT
-      const notes: string[] = []
-      if (now.turn !== null && now.turn !== 0) {
-        notes.push(s.thisTurn(now.turn > 0 ? '↑' : '↓', tokens(Math.abs(now.turn))))
-      }
-      if (now.compactAt !== null && now.tokens !== null) {
-        notes.push(s.compactAt(tokens(now.compactAt), tokens(Math.max(0, now.compactAt - now.tokens))))
-      } else if (now.autoCompact === false) {
-        notes.push(s.compactOff)
-      }
+      const turn = now.turn !== null && now.turn !== 0 ? s.thisTurn(now.turn > 0 ? '↑' : '↓', tokens(Math.abs(now.turn))) : ''
+      const compact =
+        now.compactAt !== null && now.tokens !== null
+          ? s.compactAt(tokens(now.compactAt), tokens(Math.max(0, now.compactAt - now.tokens)))
+          : now.autoCompact === false
+            ? s.compactOff
+            : ''
 
       // One bar for everything in use, a colour per kind of content; the
-      // legend names each colour, largest first, in text ink
+      // legend names each colour, largest first, in two columns where they fit
       const groups = groupParts(now.parts, s)
-      const widths = allot(groups, wide)
+      const widths = allot(groups, inner)
       const segments = groups.map((group, i) => ({ group, cells: widths[i] ?? 0 })).filter(one => one.cells > 0)
       // A kind too small to round to 1% is in the bar's total but gets no row
       const legend = groups.filter(group => group.pct >= 1).sort((a, b) => b.tokens - a.tokens)
       const labelWidth = legend.reduce((most, group) => Math.max(most, width(group.label)), 0)
+      // "■ " + label + " 100%" + "  999k"
+      const entryWidth = 2 + labelWidth + 5 + 6
+      const pairs = 2 * entryWidth + 3 <= inner
+      const entry = (group: (typeof legend)[number]) => (
+        <Box key={group.key} flexDirection="row" width={pairs ? entryWidth + 3 : undefined}>
+          <Text color={group.color}>■ </Text>
+          <Text>
+            {padTo(group.label, labelWidth)} {String(group.pct).padStart(3)}% {tokens(group.tokens).padStart(5)}
+          </Text>
+        </Box>
+      )
+      const rows: (typeof legend)[] = []
+      for (let i = 0; i < legend.length; i += pairs ? 2 : 1) rows.push(legend.slice(i, i + (pairs ? 2 : 1)))
 
       return (
         <Box flexDirection="column">
-          <Text bold>{s.contextWindow}</Text>
+          <Box flexDirection="row" columnGap={2}>
+            <Text bold>Footprint</Text>
+            {now.hasMonitor && now.memoryTotal !== null && (
+              <Text dimColor>{s.headline(s.sessions(now.sessions.length), memory(now.memoryTotal))}</Text>
+            )}
+          </Box>
+
+          {rule(s.contextWindow)}
           {now.tokens === null ? (
             <Text dimColor>{s.noResponse}</Text>
           ) : (
-            <Box flexDirection="column">
-              {meter(used, wide)}
-              <Text>{s.used(tokens(now.tokens), tokens(now.window), Math.round(used))}</Text>
-              {notes.length > 0 && (
-                <Text dimColor={!isNear} bold={isNear}>
-                  {notes.join(' · ')}
-                </Text>
+            <Box flexDirection="column" borderStyle="round" borderColor={isNear ? 'yellow' : undefined} paddingX={1}>
+              {spread(
+                <Text>{s.usedOf(tokens(now.tokens), tokens(now.window))}</Text>,
+                <Box flexDirection="row" columnGap={1}>
+                  {isNear && <Text color="yellow" inverse>{` ${s.nearBadge} `}</Text>}
+                  <Text bold>{Math.round(used)}%</Text>
+                </Box>,
+              )}
+              {meter(used, inner)}
+              {(turn !== '' || compact !== '') &&
+                spread(<Text dimColor>{turn}</Text>, <Text dimColor={!isNear} color={isNear ? 'yellow' : undefined}>{compact}</Text>)}
+              {groups.length > 0 && (
+                <Box flexDirection="column" marginTop={1}>
+                  <Text dimColor>{s.whatFills}</Text>
+                  <Box>
+                    {segments.map(one => (
+                      <Text key={one.group.key} color={one.group.color}>{'█'.repeat(one.cells)}</Text>
+                    ))}
+                  </Box>
+                  {rows.map((row, i) => (
+                    <Box key={`legend-${i}`} flexDirection="row">
+                      {row.map(entry)}
+                    </Box>
+                  ))}
+                </Box>
+              )}
+              {groups.length === 0 && now.hasMonitor && <Text dimColor>{s.noBreakdown}</Text>}
+            </Box>
+          )}
+
+          {now.limits.length > 0 && rule(s.limits)}
+          {now.limits.map(limit => {
+            const left = timeLeft(limit.resetsAt, now.at)
+
+            return spread(
+              <Box flexDirection="row" columnGap={1}>
+                <Text>{padTo(LIMITS[limit.kind] ?? limit.kind, 5)}</Text>
+                {meter(limit.percentUsed, narrow)}
+                <Text>{String(Math.round(limit.percentUsed)).padStart(3)}%</Text>
+              </Box>,
+              <Text dimColor>{left === null ? '' : s.resetsIn(left)}</Text>,
+              limit.kind,
+            )
+          })}
+
+          {rule(s.memory)}
+          {!now.hasMonitor && <Text dimColor>{s.noMonitor}</Text>}
+          {own !== undefined && (
+            <Box flexDirection="row" columnGap={1}>
+              <Text color="cyan" inverse>{` ${s.thisBadge} `}</Text>
+              <Text bold>{memory(own.mem)}</Text>
+              {own.self !== undefined && own.procs !== undefined && own.procs > 1 && (
+                <Box flexGrow={1}>
+                  <Text dimColor wrap="truncate-end">
+                    {s.children(memory(own.self), own.procs - 1, memory(own.mem - own.self)) +
+                      (own.mcp_count ? s.ofIt(s.servers(own.mcp_count), memory(own.mcp_mem ?? 0)) : '')}
+                  </Text>
+                </Box>
+              )}
+            </Box>
+          )}
+          {others.map(one =>
+            spread(
+              <Box flexDirection="row" columnGap={1} paddingLeft={2}>
+                <Text>{memory(one.mem).padStart(5)}</Text>
+                <Text wrap="truncate-end">{one.name || folder(one.cwd)}</Text>
+              </Box>,
+              <Text dimColor>{one.mcp_count ? `${s.servers(one.mcp_count)} ${memory(one.mcp_mem ?? 0)}` : ''}</Text>,
+              one.session,
+            ),
+          )}
+          {now.outside.length > 0 && (
+            <Box flexDirection="column" marginTop={1}>
+              <Text>{s.outside(s.servers(now.outside.length), memory(outsideMem))}</Text>
+              {now.outside.map(one =>
+                spread(
+                  <Box flexDirection="row" columnGap={1} paddingLeft={2}>
+                    <Text>{memory(one.mem).padStart(5)}</Text>
+                    <Text wrap="truncate-end">{one.name}</Text>
+                  </Box>,
+                  // A week or more is worth a look, as in /nod
+                  <Text dimColor={one.age < 7 * 86_400_000} color={one.age >= 7 * 86_400_000 ? 'yellow' : undefined}>
+                    {s.up(age(one.age))}
+                  </Text>,
+                  `outside-${one.pid}`,
+                ),
               )}
             </Box>
           )}
 
-          {groups.length > 0 && (
-            <Box flexDirection="column" marginTop={1}>
-              <Text bold>{s.whatFills(now.tokens === null ? null : tokens(now.tokens))}</Text>
-              <Box>
-                {segments.map(one => (
-                  <Text color={one.group.color}>{'█'.repeat(one.cells)}</Text>
-                ))}
-              </Box>
-              {legend.map(group => (
-                <Box>
-                  <Text color={group.color}>■ </Text>
-                  <Text>
-                    {padTo(group.label, labelWidth)} {String(group.pct).padStart(3)}% {tokens(group.tokens).padStart(5)}
-                  </Text>
-                </Box>
-              ))}
-            </Box>
-          )}
-          {groups.length === 0 && now.hasMonitor && <Text dimColor>{s.noBreakdown}</Text>}
-
-          {now.limits.length > 0 && (
-            <Box flexDirection="column" marginTop={1}>
-              <Text bold>{s.limits}</Text>
-              {now.limits.map(limit => {
-                const left = timeLeft(limit.resetsAt, now.at)
-
-                return (
-                  <Box>
-                    <Text>{(LIMITS[limit.kind] ?? limit.kind).padEnd(5)} </Text>
-                    {meter(limit.percentUsed, narrow)}
-                    <Text>
-                      {' '}
-                      {String(Math.round(limit.percentUsed)).padStart(3)}%{left === null ? '' : s.resetsIn(left)}
-                    </Text>
-                  </Box>
-                )
-              })}
-            </Box>
-          )}
-
-          <Box flexDirection="column" marginTop={1}>
-            <Text bold>{s.memory}</Text>
-            {own !== undefined && now.memoryTotal !== null && (
-              <Text>{s.thisSession(memory(own.mem), memory(now.memoryTotal), s.sessions(now.sessions.length))}</Text>
-            )}
-            {children !== null && <Text dimColor>{children}</Text>}
-            {now.sessions.map(one => (
-              <Text dimColor={one.session !== now.sessionId}>
-                {one.session === now.sessionId ? '›' : ' '} {memory(one.mem).padStart(5)} {one.name || folder(one.cwd)}
-                {one.mcp_count ? `  (${s.servers(one.mcp_count)} ${memory(one.mcp_mem ?? 0)})` : ''}
-              </Text>
-            ))}
-            {now.outside.length > 0 && (
-              <Box flexDirection="column" marginTop={1}>
-                <Text bold>{s.outside(s.servers(now.outside.length), memory(outsideMem))}</Text>
-                {now.outside.map(one => (
-                  <Text dimColor>
-                    {'  '}
-                    {memory(one.mem).padStart(5)} {padTo(one.name, outsideWidth)}  {s.up(age(one.age))}
-                  </Text>
-                ))}
-              </Box>
-            )}
-            {!now.hasMonitor && (
-              <Text dimColor>{s.noMonitor}</Text>
-            )}
+          <Box flexDirection="row" columnGap={2} marginTop={1}>
+            {refresh}
+            <Text dimColor>{s.closeHint}</Text>
           </Box>
-
-          <Box marginTop={1}>{refresh}</Box>
         </Box>
       )
     } catch {

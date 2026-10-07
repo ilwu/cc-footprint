@@ -1,6 +1,6 @@
 {
   "name": "cc-footprint",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Warns when a turn bloats the context or auto-compaction is near, and /footprint shows what fills the context and which session holds the RAM",
   "author": {
     "name": "ilwu"
