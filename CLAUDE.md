@@ -44,7 +44,8 @@ None of these formats is documented; `test/fixtures/` holds a capture of each, w
 - **`.sh` files the README runs are executable** — git on Windows (`core.fileMode=false`) never sets the bit, so a new one needs `git update-index --chmod=+x <file>`. `test/smoke.sh` runs the installers as `./install.sh`, so CI fails when the bit is lost.
 - **statusline.sh must run on bash 3.2** (what macOS ships) — `read -t` takes whole seconds only; a literal `{` in a regex is written `[{]`; a `\/` in the replacement of `${var//pat/rep}` is copied literally, so use a variable; an escaped quote inside `${var#pattern}` misbehaves, so put the pattern in a variable; there is no `EPOCHSECONDS` or `printf %(%s)T`, so macOS falls back to `date +%s` (forks are cheap there). Verify changes with `bash:3.2` (Key commands).
 - **`os.freemem()` is wrong on macOS** (it counts only never-touched pages) — system memory comes from `vm_stat`.
-- **The installers share `scripts/`** — `statusline-setting.js` edits settings.json (all four installers and uninstallers) and `remove-global-rule.js` removes the marked block from CLAUDE.md (both uninstallers). Do not write a second copy in PowerShell or bash.
+- **The installers share `scripts/`** — `statusline-file.js` puts statusline.sh in place and backs up one of the person's own, `statusline-setting.js` edits settings.json, `optional.js` prints the closing list of optional optimizations, `remove-global-rule.js` removes the marked block from CLAUDE.md. Do not write a second copy in PowerShell or bash; what stays in each installer is what differs by platform (prerequisites, start at login, stopping the monitor).
+- **The installers stop only our monitor** — the process on port 19823 whose command line runs `monitor/app.js`; another program there is named and left alone.
 - **`.ps1` files run on Windows PowerShell 5.1** — under `$ErrorActionPreference = "Stop"` it turns a native command's first line on a redirected stderr into an exception, so native commands whose output is kept go through `Invoke-Native` (defined at the top of each). Keep them ASCII outside comments: 5.1 reads a BOM-less file in the system code page.
 - **`wmic` is gone** (Windows 11 24H2+) — process data comes from the Get-CimInstance script embedded in `collectors/win32.js`; system memory from Node's `os` module.
 - **A monitor that is down must not stall the statusline** — under MSYS a refused connection takes 2 s to come back, so after a failure statusline.sh asks again only every 30 s (`/tmp/claude-sl-monitor.down` holds the time of the failure). Checking or writing a file costs ~5 ms there, so nothing is written while the monitor answers. While it is down the items it measures are left out, not shown from a cache: an old figure would pass for a current one.
@@ -116,8 +117,8 @@ cd monitor && node --test
 docker run --rm -v "<repo>:/repo:ro" node:22-bookworm bash /repo/test/smoke.sh
 
 # The same script runs in CI on all three platforms (SMOKE_SERVICE=1 goes
-# through systemd or launchd). On Windows it is CI-only: the uninstaller ends
-# whatever holds port 19823, the machine's own monitor included.
+# through systemd or launchd). On Windows it is CI-only: it stops and
+# uninstalls the machine's own monitor.
 
 # The plugin
 claude plugin validate plugin --strict && claude plugin test plugin

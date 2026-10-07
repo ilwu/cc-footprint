@@ -18,6 +18,23 @@ function Invoke-Native([scriptblock]$Command) {
     & $Command 2>&1 | ForEach-Object { "$_" }
 }
 
+# Stops the cc-footprint monitor on port 19823, and nothing else: another
+# program there is named and left alone. Returns what it found.
+function Stop-Monitor {
+    $owners = @(Get-NetTCPConnection -LocalPort 19823 -State Listen -ErrorAction SilentlyContinue |
+        Where-Object { $_.OwningProcess -ne 0 } | Select-Object -ExpandProperty OwningProcess -Unique)
+    if (-not $owners) { return "none" }
+    foreach ($id in $owners) {
+        $p = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
+        if ($p -and $p.CommandLine -match 'monitor[\\/]app\.js') {
+            Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
+        } else {
+            return "other:$(if ($p) { $p.Name } else { $id })"
+        }
+    }
+    return "stopped"
+}
+
 Write-Host ""
 Write-Host "  cc-footprint - Uninstaller" -ForegroundColor Cyan
 Write-Host "  ==========================" -ForegroundColor DarkGray
@@ -25,10 +42,13 @@ Write-Host ""
 
 # ── Stop monitor ─────────────────────────────────────────────────
 Write-Host "[1/6] Stopping monitor..." -ForegroundColor Yellow
-$port = Get-NetTCPConnection -LocalPort 19823 -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -ne 0 }
-if ($port) {
-    $port | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+$stopped = Stop-Monitor
+if ($stopped -eq "stopped") {
     Write-Host "  Monitor stopped" -ForegroundColor Green
+    # The tray helper leaves with it; give it a moment before its folder goes
+    Start-Sleep -Seconds 1
+} elseif ($stopped -like "other:*") {
+    Write-Host "  Port 19823 is held by $($stopped.Substring(6)), which is not cc-footprint - left alone" -ForegroundColor DarkGray
 } else {
     Write-Host "  Monitor not running" -ForegroundColor DarkGray
 }

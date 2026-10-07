@@ -54,8 +54,6 @@ kill_monitor() {
     fi
   done
 }
-# Every version of our statusline names itself in its header comment
-is_ours()     { head -n 5 "$1" 2>/dev/null | grep -q 'cc-footprint'; }
 
 printf '\n  \033[36mcc-footprint - Installer\033[0m\n  ========================\n\n'
 
@@ -82,15 +80,12 @@ mkdir -p "$claude_dir"
 statusline="$claude_dir/statusline.sh"
 # The first backup holds what was there before this tool; one that is
 # already there is kept
-if [[ -f "$statusline" ]] && ! is_ours "$statusline"; then
-  if [[ -e "$statusline.bak" ]]; then
-    warn "$statusline was not ours - replaced; the earlier statusline.sh.bak is kept"
-  else
-    cp "$statusline" "$statusline.bak"
-    warn "$statusline was not ours - backed up to statusline.sh.bak"
-  fi
-fi
-cp "$dir/statusline/statusline.sh" "$statusline"
+copied="$(node "$dir/scripts/statusline-file.js" install "$dir/statusline/statusline.sh" "$statusline")" \
+  || die "could not copy statusline.sh to $statusline"
+case "$copied" in
+  backed-up)   warn "$statusline was not ours - backed up to statusline.sh.bak" ;;
+  kept-backup) warn "$statusline was not ours - replaced; the earlier statusline.sh.bak is kept" ;;
+esac
 ok "Copied statusline.sh -> $statusline"
 
 settings="$claude_dir/settings.json"
@@ -211,29 +206,12 @@ else
   printf '      %s (true/false per item, applied at once)\n' "$config_file"
 fi
 
-# Listed, never applied: they change ~/.claude/ for every project, so the
-# person decides. Under Claude Code (CLAUDECODE is set) the AI running this
-# script is told to ask first and to merge rather than overwrite.
-printf '\n  \033[36mOptional: global optimizations\033[0m\n'
-printf '    Not applied automatically - they change ~/.claude/ for every project.\n'
-if grep -q 'cc-footprint:browser-agent:start' "$claude_dir/CLAUDE.md" 2>/dev/null; then
-  printf '    - Browser subagent: already applied\n'
-else
-  printf '    - Browser subagent: hand multi-step Chrome work to a subagent with a\n'
-  printf '      short context, so browser-heavy sessions cost much less.\n'
-  printf "      How to apply: README.md -> 'Hand browser work to a subagent'\n"
-  if [[ -n "${CLAUDECODE:-}" ]]; then
-    printf '\n  \033[35m[For the AI assistant running this installer]\033[0m\n'
-    printf '    Ask the user whether to apply the browser subagent optimization.\n'
-    printf '    Do not apply it without a yes. To apply:\n'
-    printf '      1. Copy %s/claude/agents/browser.md\n' "$dir"
-    printf '         to ~/.claude/agents/browser.md. If that file already exists,\n'
-    printf '         show the user how it differs and ask before replacing it.\n'
-    printf '      2. Append the full contents of %s/claude/global-rule.md\n' "$dir"
-    printf '         (start/end markers included) to the end of ~/.claude/CLAUDE.md.\n'
-    printf '         Keep everything already in that file.\n'
-    printf '      3. Tell the user to restart open Claude Code sessions.\n'
-  fi
-fi
+# Listed, never applied (scripts/optional.js says why and what); a line
+# starting with "#" is a heading
+printf '\n'
+while IFS= read -r line; do
+  if [[ "$line" == '#'* ]]; then printf '  \033[36m%s\033[0m\n' "${line#\#}"
+  else printf '    %s\n' "$line"; fi
+done < <(node "$dir/scripts/optional.js" "$dir" "$claude_dir")
 
 printf '\n  To uninstall: ./uninstall.sh\n\n'

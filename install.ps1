@@ -42,6 +42,23 @@ function Invoke-Native([scriptblock]$Command) {
     & $Command 2>&1 | ForEach-Object { "$_" }
 }
 
+# Stops the cc-footprint monitor on port 19823, and nothing else: another
+# program there is named and left alone. Returns what it found.
+function Stop-Monitor {
+    $owners = @(Get-NetTCPConnection -LocalPort 19823 -State Listen -ErrorAction SilentlyContinue |
+        Where-Object { $_.OwningProcess -ne 0 } | Select-Object -ExpandProperty OwningProcess -Unique)
+    if (-not $owners) { return "none" }
+    foreach ($id in $owners) {
+        $p = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
+        if ($p -and $p.CommandLine -match 'monitor[\\/]app\.js') {
+            Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
+        } else {
+            return "other:$(if ($p) { $p.Name } else { $id })"
+        }
+    }
+    return "stopped"
+}
+
 Write-Host ""
 Write-Host "  cc-footprint - Installer" -ForegroundColor Cyan
 Write-Host "  ========================" -ForegroundColor DarkGray
@@ -57,6 +74,10 @@ if (-not $node) {
     exit 1
 }
 $nodeVer = (node --version) -replace '^v',''
+if ([int]($nodeVer.Split('.')[0]) -lt 18) {
+    Write-Host "  ERROR: Node.js 18 or newer is needed (found $nodeVer)" -ForegroundColor Red
+    exit 1
+}
 Write-Host "  Node.js $nodeVer" -ForegroundColor Green
 
 # Git Bash
@@ -78,11 +99,14 @@ if (-not $claude) {
     Write-Host "  Claude Code found" -ForegroundColor Green
 }
 
-# Check if already running
-$existing = Get-NetTCPConnection -LocalPort 19823 -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -ne 0 }
-if ($existing) {
-    Write-Host "  WARNING: Port 19823 already in use. Stopping existing monitor..." -ForegroundColor Yellow
-    $existing | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+# A monitor already running is stopped, to start the new build
+$stopped = Stop-Monitor
+if ($stopped -like "other:*") {
+    Write-Host "  ERROR: port 19823 is held by $($stopped.Substring(6)), which is not cc-footprint - left alone" -ForegroundColor Red
+    exit 1
+}
+if ($stopped -eq "stopped") {
+    Write-Host "  Stopped the running monitor" -ForegroundColor DarkGray
     Start-Sleep -Seconds 1
 }
 
@@ -109,21 +133,17 @@ if (-not (Test-Path $claudeDir)) {
 $statuslineSrc = Join-Path $statuslineDir "statusline.sh"
 $statuslineDst = Join-Path $claudeDir "statusline.sh"
 
-# Our script names itself in its header comment
-if (Test-Path $statuslineDst) {
-    $head = (Get-Content $statuslineDst -TotalCount 5 -Encoding UTF8) -join "`n"
-    if (-not $head.Contains("cc-footprint")) {
-        # The first backup holds what was there before this tool; one that is
-        # already there is kept
-        if (Test-Path "$statuslineDst.bak") {
-            Write-Host "  WARNING: $statuslineDst was not ours - replaced; the earlier statusline.sh.bak is kept" -ForegroundColor Yellow
-        } else {
-            Copy-Item $statuslineDst "$statuslineDst.bak"
-            Write-Host "  WARNING: $statuslineDst was not ours - backed up to statusline.sh.bak" -ForegroundColor Yellow
-        }
-    }
+# A statusline of the person's own is backed up first (scripts/)
+$copied = node (Join-Path $scriptDir "scripts\statusline-file.js") install $statuslineSrc $statuslineDst
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  ERROR: could not copy statusline.sh to $statuslineDst" -ForegroundColor Red
+    exit 1
 }
-Copy-Item $statuslineSrc $statuslineDst -Force
+if ($copied -eq "backed-up") {
+    Write-Host "  WARNING: $statuslineDst was not ours - backed up to statusline.sh.bak" -ForegroundColor Yellow
+} elseif ($copied -eq "kept-backup") {
+    Write-Host "  WARNING: $statuslineDst was not ours - replaced; the earlier statusline.sh.bak is kept" -ForegroundColor Yellow
+}
 Write-Host "  Copied statusline.sh -> $statuslineDst" -ForegroundColor Green
 
 # Set statusLine in settings.json. A node script edits the JSON so key order
@@ -227,38 +247,12 @@ Write-Host "    - In a session, /footprint opens the pane; a turn that bloats th
 Write-Host "    - Monitor auto-starts on boot"
 
 # ── Optional global optimizations ────────────────────────────────
-# Listed, never applied: they change ~/.claude/ for every project, so the
-# user decides. Under Claude Code (CLAUDECODE is set) the AI running this
-# script is told to ask first and to merge rather than overwrite.
-$agentSrc = Join-Path $scriptDir "claude\agents\browser.md"
-$ruleSrc = Join-Path $scriptDir "claude\global-rule.md"
-$claudeMd = Join-Path $claudeDir "CLAUDE.md"
-$browserApplied = (Test-Path $claudeMd) -and
-    ([IO.File]::ReadAllText($claudeMd) -match "<!-- cc-footprint:browser-agent:start -->")
-
+# Listed, never applied (scripts/optional.js says why and what); a line
+# starting with "#" is a heading
 Write-Host ""
-Write-Host "  Optional: global optimizations" -ForegroundColor Cyan
-Write-Host "    Not applied automatically - they change ~/.claude/ for every project."
-if ($browserApplied) {
-    Write-Host "    - Browser subagent: already applied" -ForegroundColor DarkGray
-} else {
-    Write-Host "    - Browser subagent: hand multi-step Chrome work to a subagent with a"
-    Write-Host "      short context, so browser-heavy sessions cost much less."
-    Write-Host "      How to apply: README.md -> 'Hand browser work to a subagent'"
-
-    if ($env:CLAUDECODE) {
-        Write-Host ""
-        Write-Host "  [For the AI assistant running this installer]" -ForegroundColor Magenta
-        Write-Host "    Ask the user whether to apply the browser subagent optimization."
-        Write-Host "    Do not apply it without a yes. To apply:"
-        Write-Host "      1. Copy $agentSrc"
-        Write-Host "         to ~/.claude/agents/browser.md. If that file already exists,"
-        Write-Host "         show the user how it differs and ask before replacing it."
-        Write-Host "      2. Append the full contents of $ruleSrc"
-        Write-Host "         (start/end markers included) to the end of ~/.claude/CLAUDE.md."
-        Write-Host "         Keep everything already in that file."
-        Write-Host "      3. Tell the user to restart open Claude Code sessions."
-    }
+foreach ($line in @(node (Join-Path $scriptDir "scripts\optional.js") $scriptDir $claudeDir)) {
+    if ($line.StartsWith("#")) { Write-Host "  $($line.Substring(1))" -ForegroundColor Cyan }
+    else { Write-Host "    $line" }
 }
 
 Write-Host ""

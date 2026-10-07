@@ -9,8 +9,8 @@
 #                                       or a launchd agent; CI only, see below
 #
 # On Windows it runs under Git Bash, installs with Windows PowerShell 5.1 (as
-# install.ps1 is mostly run) and is for CI only: the uninstaller ends
-# whatever holds port 19823, a monitor of the machine's own included.
+# install.ps1 is mostly run) and is for CI only: it stops and uninstalls
+# the machine's own monitor.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,7 +19,7 @@ tmp_home=""
 is_mac() { [[ "$(uname -s)" == Darwin ]]; }
 is_win() { [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; }
 if is_win && [[ "${CI:-}" != true ]]; then
-  echo "on Windows this test ends whatever holds port 19823, so it runs under CI only" >&2
+  echo "on Windows this test stops the machine's own monitor, so it runs under CI only" >&2
   exit 2
 fi
 if [[ -n "${SMOKE_SERVICE:-}" ]]; then
