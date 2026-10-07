@@ -66,6 +66,23 @@ test('each part says what it is, so an MCP server named like a built-in category
   assert.equal(context.summarize(c).mcp_pct, 8);
 });
 
+test("a plugin's MCP server goes by the server's name, and two plugins' servers stay apart", () => {
+  const c = feed([
+    prompt('hello'),
+    answer('m1', 10000, 0, [call('t1', 'mcp__plugin_my-plugin_database-tools__query'), call('t2', 'mcp__plugin_other_database-tools__query')]),
+    result('t1', 100),
+    result('t2', 300),
+    answer('m2', 14000, 0),
+  ]);
+
+  const byId = Object.fromEntries(context.detail(c).parts.map(p => [p.id, [p.kind, p.name]]));
+  assert.deepEqual(byId, {
+    base: ['base', 'base'],
+    'mcp:plugin_my-plugin_database-tools': ['mcp', 'database-too'],
+    'mcp:plugin_other_database-tools': ['mcp', 'database-too'],
+  });
+});
+
 test('a compaction leaves the base and a summary, and starts the turn again', () => {
   const c = feed([
     prompt('hello'),

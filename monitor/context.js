@@ -36,11 +36,15 @@ function lengthOf(content) {
   return n;
 }
 
-// Short name the statusline can print: mcp:claude-in-chrome -> chrome
+// Short name the statusline can print: mcp:claude-in-chrome -> chrome. A
+// server a plugin brings is named plugin_<plugin>_<server>: the server's
+// part is the name (plugin names are kebab-case, so the first "_" after
+// the plugin's ends it).
 function labelOf(cat) {
   if (cat === 'thinking') return 'think';
   if (!cat.startsWith('mcp:')) return cat;
   return cat.slice(4)
+    .replace(/^plugin_[^_]+_(?=.)/, '')
     .replace(/^(claude[-_]in[-_]|claude[-_]ai[-_]|mcp[-_])|[-_]mcp$/gi, '')
     .replace(/[^A-Za-z0-9_.-]/g, '_')
     .slice(0, 12) || 'mcp';
