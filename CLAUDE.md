@@ -5,20 +5,24 @@ A background service (a system tray app on Windows, a menu bar icon on macOS, he
 ## Architecture
 
 ```
-monitor/app.js (Node.js)              statusline/statusline.sh (Bash)
-├─ Tray icon (systray2)               ├─ Run by Claude Code after every reply
-├─ HTTP API :19823                    ├─ /dev/tcp GET /session/<sid> (~35 ms)
-├─ Process table every 60 s           ├─ Assembles items + ANSI colors + wraps
+monitor/ (Node.js)                    statusline/statusline.sh (Bash)
+├─ app.js: wiring + the 60 s loop     ├─ Run by Claude Code after every reply
+├─ api.js: HTTP :19823                ├─ /dev/tcp GET /session/<sid> (~35 ms)
+├─ tray.js: tray icon (systray2)      ├─ Assembles items + ANSI colors + wraps
+├─ config.js: ITEMS + config.json
+├─ collectors/: the process table, every 60 s
 │   collectors/win32.js (CIM)
 │   collectors/linux.js (/proc)
 │   collectors/darwin.js (ps + vm_stat)
-├─ session→PID: ~/.claude/sessions/<pid>.json
-├─ Context composition: tail ~/.claude/projects/**/<sid>.jsonl
-│   (the main thread only; algorithm in monitor/context.js)
+├─ sessions.js: session→PID, ~/.claude/sessions/<pid>.json
+├─ plugin-state.js: is our plugin enabled (settings.json)
+├─ proctree.js: the table → each session's tree, MCP servers
+├─ transcripts.js: tail ~/.claude/projects/**/<sid>.jsonl
+│   (the main thread only) → context.js: the composition
 └─ Config: ~/.cc-footprint/           └─ Monitor down: only what Claude Code itself reports
 ```
 
-HTTP API, and who reads it: `/session/:sid` the statusline; `/context/:sid` and `/sessions` the plugin (`/sessions` also `install.ps1`, to report what it found); `/status`, `/status/:pid` and `/config` nobody here, for looking at by hand. Requests must carry our own Host header (DNS rebinding).
+Each module but `app.js` is a factory taking its paths and the state it needs, so that a test can point it at a temporary directory. HTTP API (`api.js`), and who reads it: `/session/:sid` the statusline; `/context/:sid` and `/sessions` the plugin (`/sessions` also `install.ps1`, to report what it found); `/status`, `/status/:pid` and `/config` nobody here, for looking at by hand. Requests must carry our own Host header (DNS rebinding).
 
 ## What Claude Code gives us
 
@@ -26,7 +30,7 @@ None of these formats is documented; `test/fixtures/` holds a capture of each, w
 
 - **Statusline stdin** — read with bash regexes at the top of `statusline.sh`. Keys that occur more than once (`used_percentage` is in `context_window` and in each rate limit) must be looked for inside their own object.
 - **Session files** `~/.claude/sessions/<pid>.json` — `pid`, `sessionId`, `cwd`, `name`, `startedAt` (epoch ms, a few seconds after the process began; a process much younger than it is a reused pid). A killed session leaves its file behind.
-- **Transcripts** — the rows `context.js` reads are listed in its `track()`. `app.js` pre-filters lines by substring (`"type":"assistant"`), which relies on Claude Code writing compact JSON.
+- **Transcripts** — the rows `context.js` reads are listed in its `track()`. `transcripts.js` pre-filters lines by substring (`"type":"assistant"`), which relies on Claude Code writing compact JSON.
 - **settings.json** — `statusLine` (ours: see "Installing without overwriting") and `enabledPlugins["cc-footprint@…"]`, which drives the statusline's `/footprint` hint.
 
 ## Critical constraints
@@ -35,7 +39,7 @@ None of these formats is documented; `test/fixtures/` holds a capture of each, w
 - **Spawning a process on Windows is expensive** — PowerShell ~500–900 ms, curl ~650 ms, cat ~230 ms.
 - **Session memory = the whole process tree** — a collector only lists processes (pid, ppid, memory, start time, the MCP server's name if the command line names one); adding up the tree and deciding MCP servers, in a session's tree or outside every session, happens in `monitor/proctree.js` (pure functions, tested by `node --test` in `monitor/`). A collector for another platform just has to produce the same table.
 - **MCP server detection**: the command line mentions `mcp`, `modelcontextprotocol` or `chrome-native-host` (Chrome's bridge to its extension; the pattern and the server's short name are in `collectors/mcp.js`) and the process has been alive for 30 s or more (so a tool shell that happens to mention the word is not one). One outside every session's tree is listed as `outside`, a wrapper chain once; whose parent it has does not matter.
-- **Listing processes is the only per-platform code** — one collector per platform under `monitor/collectors/`, all producing the same table (the interface is in `collectors/index.js`). The other platform branches are the tray in `app.js` (none on Linux, an .ico or a .png, the helper's name) and the `date` fallback in `statusline.sh` on macOS; add none elsewhere. Linux has no tray, so items are toggled by editing `~/.cc-footprint/config.json` (app.js re-reads it when the mtime changes).
+- **Listing processes is the only per-platform code** — one collector per platform under `monitor/collectors/`, all producing the same table (the interface is in `collectors/index.js`). The other platform branches are in `tray.js` (none on Linux, an .ico or a .png, the helper's name) and the `date` fallback in `statusline.sh` on macOS; add none elsewhere. Linux has no tray, so items are toggled by editing `~/.cc-footprint/config.json` (config.js re-reads it when the mtime changes).
 - **`.sh` files are always LF** (set in `.gitattributes`) — a CRLF bash script simply breaks on Linux.
 - **`.sh` files the README runs are executable** — git on Windows (`core.fileMode=false`) never sets the bit, so a new one needs `git update-index --chmod=+x <file>`. `test/smoke.sh` runs the installers as `./install.sh`, so CI fails when the bit is lost.
 - **statusline.sh must run on bash 3.2** (what macOS ships) — `read -t` takes whole seconds only; a literal `{` in a regex is written `[{]`; a `\/` in the replacement of `${var//pat/rep}` is copied literally, so use a variable; an escaped quote inside `${var#pattern}` misbehaves, so put the pattern in a variable; there is no `EPOCHSECONDS` or `printf %(%s)T`, so macOS falls back to `date +%s` (forks are cheap there). Verify changes with `bash:3.2` (Key commands).
@@ -55,7 +59,7 @@ None of these formats is documented; `test/fixtures/` holds a capture of each, w
 
 ## Adding a display item
 
-1. `monitor/app.js` — one line in the ITEMS array (the tray menu picks it up); a label must not hold `&`. If the monitor supplies the figure, add it to `statusFor()` or the `/session` handler under a key no other field contains.
+1. `monitor/config.js` — one line in the ITEMS array (the tray menu picks it up); a label must not hold `&`. If the monitor supplies the figure, add it to `statusFor()` or the `/session` handler in `api.js` under a key no other field contains.
 2. `statusline/statusline.sh` — the regex parse and an `if has xxx; then add_item ...` render. Where the render sits is where it shows: the order is the script's, not the menu's. If Claude Code alone supplies it, consider it for the fallback `display` list used while the monitor is down.
 3. Both READMEs — the row in the items table and the key in the `config.json` defaults.
 4. `test/smoke.sh` — the 100-column wrapping check may move if the item is on by default.
@@ -113,7 +117,7 @@ What to run for a change:
 |---|---|
 | `proctree.js`, `context.js`, a collector | `node --test` in `monitor/` |
 | `statusline.sh` | the fixture through it, then under `bash:3.2`; the smoke test |
-| `app.js`, the installers, `scripts/` | the smoke test in Docker; CI for Windows and macOS |
+| `app.js`, `api.js`, `tray.js`, the installers, `scripts/` | the smoke test in Docker; CI for Windows and macOS |
 | `plugin/` | `claude plugin validate plugin --strict`, `claude plugin test plugin`, type-check (below) |
 
 ## Not verified
