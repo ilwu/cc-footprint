@@ -168,8 +168,16 @@ grep -q 'echo another' "$HOME/.claude/statusline.sh.bak.test.bak" || fail "the f
 rm -f "$HOME/.claude/statusline.sh.bak.test" "$HOME/.claude/statusline.sh.bak.test.bak"
 pass "statusLine and statusline.sh set, the rest kept, the person's own backed up and the first backup kept"
 
-status="$(get "/session/$sid")"
-mem="$(field "$status" mem)"; self="$(field "$status" self)"; procs="$(field "$status" procs)"
+# The installer waits for the API, not for the first measurement, which on
+# Windows takes several seconds (PowerShell compiling its Add-Type)
+for _ in $(seq 1 60); do
+  status="$(get "/session/$sid")"
+  mem="$(field "$status" mem)"
+  [[ "$mem" =~ ^[0-9]+$ ]] && break
+  sleep 0.5
+done
+[[ "$mem" =~ ^[0-9]+$ ]] || fail "the session was not measured within 30 s: $status"
+self="$(field "$status" self)"; procs="$(field "$status" procs)"
 (( mem >= 110 * MB )) || fail "tree memory $mem is less than the 120 MB the stand-ins hold: $status"
 (( self >= 70 * MB && self < mem )) || fail "self $self should be the parent alone: $status"
 (( procs >= 2 )) || fail "expected the child in the tree, procs=$procs"
