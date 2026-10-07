@@ -89,7 +89,7 @@ English, German, Spanish, French, Japanese, Korean, and Simplified and Tradition
 
 - `README.md` and `README.zh-TW.md` mirror each other section by section: change both.
 - `scripts/optional.js` names the README section "Hand browser work to a subagent"; keep it in step.
-- Images: `screenshots/social-preview.png` is rendered from `social-preview.html` (its header says how) and uploaded by hand under GitHub Settings → Social preview; `banner.png` is its top 1280×380. `cc-footprint.png` and `tray-menu.png` are screenshots of a real session: before publishing one, mask the names of other sessions in it. `monitor/icon.*` come from `scripts/make-icon.py`.
+- Images: `screenshots/social-preview.png` is rendered from `social-preview.html` (its header says how) and uploaded by hand under GitHub Settings → Social preview; `banner.png` is its top 1280×380. `cc-footprint.png` and `tray-menu.png` (and their `.zh-TW.png` twins, which README.zh-TW.md shows) are screenshots of a real session: before publishing one, mask the names of other sessions in it, and keep each README's caption in step with what its image shows. `monitor/icon.*` come from `scripts/make-icon.py`.
 
 ## Key commands
 

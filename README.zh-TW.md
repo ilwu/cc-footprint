@@ -15,11 +15,11 @@
 每個 Claude Code session 都有自己的 footprint：背著的 **context**，和佔著的 **RAM**。cc-footprint 把這兩樣量出來，放回那個 session 自己的狀態列 — 是什麼在塞 context、是哪個 session 在吃記憶體，看得到，也就降得下來。要看多少由你決定：狀態列只放你勾的，有事才跳提示，想看明細再打開面板。
 
 <p>
-  <img src="screenshots/cc-footprint.png" alt="一個 Claude Code session：最下面兩行是狀態列，右側是 /footprint 面板" width="75%">
-  <img src="screenshots/tray-menu.png" alt="工具列選單：每個狀態列項目一個開關，分成三組" width="22%">
+  <img src="screenshots/cc-footprint.zh-TW.png" alt="一個 Claude Code session：最下面是狀態列，右側是 /footprint 面板" width="75%">
+  <img src="screenshots/tray-menu.zh-TW.png" alt="工具列選單：每個狀態列項目一個開關，分成三組，以及語言選單" width="22%">
 </p>
 
-*大圖：context 用了 92%，光這一輪就加了 83k token；塞滿它的主要是指令輸出、讀檔和 Claude 自己的輸出。全部 session 共用 1.3 GB，這個 session 佔 310 MB。最下面兩行是狀態列，右側是 `/footprint` 面板。小圖：工具列選單，每個項目一個開關。*
+*大圖：context 用了 89%，1M 視窗裡的 892k；塞滿它的主要是 Claude 自己的輸出、讀檔，以及系統提示與工具定義。四個 session 共用 1.7 GB，這個 session 佔 488 MB，另有 Chrome 擴充套件的橋接程式不屬於任何 session。最下面是狀態列，右側是 `/footprint` 面板。小圖：工具列選單，每個項目一個開關，語言選單展開著。*
 
 > 支援 Windows、Linux 和 macOS。
 

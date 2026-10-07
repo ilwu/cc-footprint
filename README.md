@@ -15,11 +15,11 @@ cc-footprint is for all three.
 Every Claude Code session has a footprint: the **context** it carries and the **RAM** it holds. cc-footprint measures both and puts them back in that session's own statusline — what is filling the context, which session is eating the memory — so you can see it, and so you can shrink it. How much you see is up to you: the statusline shows only the items you tick, a toast speaks up only when something happens, and a pane opens only when you want the details.
 
 <p>
-  <img src="screenshots/cc-footprint.png" alt="A Claude Code session: the statusline on its last two lines, the /footprint pane at the right" width="75%">
-  <img src="screenshots/tray-menu.png" alt="The tray menu: one switch per statusline item, in three groups" width="22%">
+  <img src="screenshots/cc-footprint.png" alt="A Claude Code session: the statusline at the bottom, the /footprint pane at the right" width="75%">
+  <img src="screenshots/tray-menu.png" alt="The tray menu: one switch per statusline item, in three groups, and the Language menu" width="22%">
 </p>
 
-*Large image: the context is 92% full, and this turn alone added 83k tokens; command output, file reads and Claude's own output fill most of it. All sessions together hold 1.3 GB, this one 310 MB. The last two lines are the statusline; at the right is the `/footprint` pane. Small image: the tray menu, one switch per item.*
+*Large image: the context is 89% full, 892k of a 1M window; Claude's own output, file reads, and the system prompt with the tool definitions fill most of it. Four sessions hold 1.7 GB, this one 489 MB, and Chrome's bridge to its extension runs outside every session. The statusline is at the bottom; at the right is the `/footprint` pane. Small image: the tray menu, one switch per item, with the Language menu open.*
 
 > Runs on Windows, Linux and macOS.
 
