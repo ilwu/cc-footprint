@@ -270,11 +270,16 @@ export const register: Register = on => {
       const others = now.sessions.filter(one => one.session !== now.sessionId)
       const outsideMem = now.outside.reduce((sum, one) => sum + one.mem, 0)
 
-      // ── Section title ────────, as long as the pane is wide
+      // ── Section title ────────, as long as the pane is wide, a blank line
+      // above it to set the section off from the one before
       const rule = (label: string) => {
         const head = `── ${label} `
 
-        return <Text dimColor>{head + '─'.repeat(Math.max(4, Math.min(columns, 100) - width(head) - 1))}</Text>
+        return (
+          <Box marginTop={1}>
+            <Text dimColor>{head + '─'.repeat(Math.max(4, Math.min(columns, 100) - width(head) - 1))}</Text>
+          </Box>
+        )
       }
       // A ratio against its limit: the filled part in ink, the rest a dim
       // track along the baseline. Half a cell high, so two meters on
