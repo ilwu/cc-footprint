@@ -73,11 +73,14 @@ echo '{"session_id":"test",...}' | bash statusline/statusline.sh
 # Unit tests (process tree, collectors, context)
 cd monitor && node --test
 
-# The whole Linux flow (install → measure → statusline → uninstall), in Docker
-docker run --rm -v "<repo>:/repo:ro" node:22-bookworm bash /repo/test/smoke-linux.sh
+# The whole flow (install → measure → statusline → uninstall) on Linux, in
+# Docker (from PowerShell on Windows: Git Bash rewrites the -v paths)
+docker run --rm -v "<repo>:/repo:ro" node:22-bookworm bash /repo/test/smoke.sh
 
-# No Mac hardware: CI's macos-latest runs the same smoke test (SMOKE_SERVICE=1
-# goes through launchd); the menu bar icon is not visible there and is unverified
+# The same script runs in CI on all three platforms (SMOKE_SERVICE=1 goes
+# through systemd or launchd). On Windows it is CI-only: the installer writes
+# the real Startup folder and the uninstaller ends whatever holds port 19823.
+# No Mac hardware: the menu bar icon is not visible in CI and is unverified
 ```
 
 ## Plugin (mod)

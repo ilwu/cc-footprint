@@ -29,7 +29,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: bash test/smoke-linux.sh
+      - run: bash test/smoke.sh
 
   linux-systemd:
     # The same run with the monitor as a systemd user service, which is how
@@ -49,7 +49,20 @@ jobs:
             [ -S "/run/user/$(id -u)/bus" ] && break
             sleep 0.5
           done
-      - run: SMOKE_SERVICE=1 bash test/smoke-linux.sh
+      - run: SMOKE_SERVICE=1 bash test/smoke.sh
+
+  windows:
+    # The same check on Windows, the platform most people run it on: the
+    # CIM collector, install.ps1 and uninstall.ps1 under Windows PowerShell
+    # 5.1, the statusline under Git Bash
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: bash test/smoke.sh
+        shell: bash
 
   macos:
     # The same check on macOS: the ps collector, /bin/bash 3.2 for the
@@ -60,7 +73,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: bash test/smoke-linux.sh
+      - run: bash test/smoke.sh
 
   macos-service:
     # ...and as a launchd agent, which is how install.sh sets it up on a Mac
@@ -70,4 +83,4 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: SMOKE_SERVICE=1 bash test/smoke-linux.sh
+      - run: SMOKE_SERVICE=1 bash test/smoke.sh
