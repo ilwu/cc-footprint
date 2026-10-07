@@ -5,6 +5,7 @@ import type { Outside, Part, Session, View } from '../types'
 import {
   NEAR_COMPACT,
   REARM,
+  sessions,
   age,
   allot,
   compactNotice,
@@ -348,7 +349,7 @@ export const register: Register = on => {
             <Text bold>Memory</Text>
             {own !== undefined && now.memoryTotal !== null && (
               <Text>
-                {memory(own.mem)} this session, {memory(now.memoryTotal)} across {now.sessions.length} sessions
+                {memory(own.mem)} this session, {memory(now.memoryTotal)} across {sessions(now.sessions.length)}
               </Text>
             )}
             {children !== null && <Text dimColor>{children}</Text>}

@@ -159,13 +159,20 @@ function track(c, j) {
   }
 }
 
-// Every category with its tokens, largest first
+// Every category with its tokens, largest first. `name` is for showing and
+// may repeat (a short MCP server name); `id` is the category itself, unique;
+// `kind` is what it is: one of the built-in names, or "mcp" for every
+// server, so that a reader never has to guess it from the name (a server
+// called "web" is still an MCP server).
 function detail(c) {
   if (!c || !c.size) return null;
   const parts = Object.entries(c.cats)
     .filter(([, v]) => v >= 1)
     .sort((a, b) => b[1] - a[1])
-    .map(([k, v]) => ({ name: labelOf(k), tokens: Math.round(v), pct: Math.round(100 * v / c.size) }));
+    .map(([k, v]) => ({
+      id: k, kind: k.startsWith('mcp:') ? 'mcp' : labelOf(k), name: labelOf(k),
+      tokens: Math.round(v), pct: Math.round(100 * v / c.size),
+    }));
   return { tokens: c.size + c.out, turn: c.size + c.out - c.turnStart, parts };
 }
 
@@ -176,7 +183,7 @@ function detail(c) {
 function summarize(c) {
   const d = detail(c);
   if (!d) return null;
-  const top = d.parts.find(p => p.name !== 'base' && p.name !== 'system' && p.pct > 0);
+  const top = d.parts.find(p => p.kind !== 'base' && p.kind !== 'system' && p.pct > 0);
   let mcp = 0;
   for (const [k, v] of Object.entries(c.cats)) if (k.startsWith('mcp:')) mcp += v;
   return { turn: d.turn, src: top ? top.name : null, src_pct: top ? top.pct : null, mcp_pct: Math.round(100 * mcp / c.size) };

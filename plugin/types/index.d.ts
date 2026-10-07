@@ -1,5 +1,10 @@
-/** One thing the context holds, as the tray app's /context answers it. */
-export type Part = { name: string; tokens: number; pct: number }
+/**
+ * One thing the context holds, as the tray app's /context answers it.
+ * `name` is for showing and may repeat; `id` is unique; `kind` is a
+ * built-in category's name or "mcp" for every MCP server. An older tray app
+ * sends neither of the last two.
+ */
+export type Part = { name: string; tokens: number; pct: number; id?: string; kind?: string }
 
 /**
  * One running Claude Code session, as the tray app's /sessions answers it.

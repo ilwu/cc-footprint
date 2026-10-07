@@ -23,6 +23,11 @@ export function memory(bytes: number): string {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)}G` : `${Math.round(mb)}M`
 }
 
+/** `1 session`, `3 sessions`. */
+export function sessions(n: number): string {
+  return `${n} session${n === 1 ? '' : 's'}`
+}
+
 /** `2h13m`, `4d21h`, `45m`; null when the reset is unknown or already past. */
 export function timeLeft(resetsAt: number | null, now: number): string | null {
   if (resetsAt === null) return null
@@ -84,6 +89,19 @@ const GROUPS: readonly { key: string; label: string; color: string; of: readonly
   { key: 'system', label: 'System & tools setup', color: '#898781', of: ['base', 'system'] },
 ]
 
+const BUILT_IN = new Set(GROUPS.flatMap(group => group.of))
+
+/**
+ * What a part is: the tray app says so; one too old to say is taken for an
+ * MCP server when its name is none of the built-in ones.
+ */
+export function kindOf(part: Part): string {
+  return part.kind ?? (BUILT_IN.has(part.name) ? part.name : 'mcp')
+}
+
+/** What tells two parts apart: the same short name can be two servers. */
+const idOf = (part: Part): string => part.id ?? part.name
+
 /**
  * The parts folded into the kinds the pane draws, in stacking order, a kind
  * holding nothing left out. MCP servers share one kind, named in its label.
@@ -91,11 +109,10 @@ const GROUPS: readonly { key: string; label: string; color: string; of: readonly
 export function groupParts(parts: readonly Part[]): Group[] {
   const total = parts.reduce((sum, part) => sum + part.tokens, 0)
   if (total <= 0) return []
-  const named = new Set(GROUPS.flatMap(group => group.of))
-  const servers = parts.filter(part => !named.has(part.name))
+  const servers = parts.filter(part => kindOf(part) === 'mcp')
 
   return GROUPS.map(group => {
-    const own = group.key === 'mcp' ? servers : parts.filter(part => group.of.includes(part.name))
+    const own = group.key === 'mcp' ? servers : parts.filter(part => group.of.includes(kindOf(part)))
     const sum = own.reduce((all, part) => all + part.tokens, 0)
     const names = servers.slice(0, 2).map(part => part.name).join(', ') + (servers.length > 2 ? ', ...' : '')
     const label = group.key === 'mcp' && servers.length > 0 ? `MCP tools (${names})` : group.label
@@ -124,9 +141,9 @@ export function allot(groups: readonly Group[], cells: number): number[] {
   return given
 }
 
-/** A part's name in words; one the tray app does not name is an MCP server. */
-export function describe(name: string): string {
-  return NAMES[name] ?? `the ${name} MCP server`
+/** A part in words. */
+export function describe(part: Part): string {
+  return kindOf(part) === 'mcp' ? `the ${part.name} MCP server` : (NAMES[kindOf(part)] ?? part.name)
 }
 
 /**
@@ -138,15 +155,15 @@ export function turnNotice(base: TurnBase | null, now: View): string | null {
   const grown = now.turn ?? (before !== null && now.tokens !== null ? now.tokens - before : null)
   if (grown === null || now.window <= 0 || grown < BIG_TURN * now.window) return null
 
-  let top: string | null = null
+  let top: Part | null = null
   let most = 0
   // Without the parts at the turn's start every part would look new
   if (base !== null && base.parts.length > 0) {
     for (const part of now.parts) {
-      const was = base.parts.find(one => one.name === part.name)?.tokens ?? 0
+      const was = base.parts.find(one => idOf(one) === idOf(part))?.tokens ?? 0
       if (part.tokens - was > most) {
         most = part.tokens - was
-        top = part.name
+        top = part
       }
     }
   }
@@ -182,7 +199,7 @@ export function summaryLine(now: View): string {
   if (top.length > 0) said.push(`Largest: ${top.map(part => `${part.name} ${part.pct}%`).join(', ')}.`)
   const own = now.sessions.find(one => one.session === now.sessionId)
   if (own !== undefined && now.memoryTotal !== null) {
-    said.push(`Memory: ${memory(own.mem)} of ${memory(now.memoryTotal)} across ${now.sessions.length} sessions.`)
+    said.push(`Memory: ${memory(own.mem)} of ${memory(now.memoryTotal)} across ${sessions(now.sessions.length)}.`)
   }
   if (!now.hasMonitor) said.push('The cc-footprint tray app is not running, so memory and the breakdown are unknown.')
 

@@ -85,7 +85,7 @@ test('the compaction warning starts at 85% of the way to the threshold', () => {
 
 test('the one-line summary covers context, largest parts and memory', () => {
   expect(summaryLine(VIEW)).toBe(
-    'Context 60% (120k of 200k), +4k this turn. Largest: files 50%, output 25%. Memory: 800M of 2.0G across 1 sessions.',
+    'Context 60% (120k of 200k), +4k this turn. Largest: files 50%, output 25%. Memory: 800M of 2.0G across 1 session.',
   )
 })
 
@@ -104,6 +104,25 @@ test('parts fold into kinds that keep their colour, MCP servers under one', () =
   ])
   expect(groups[0]?.color).toBe('#3987e5')
   expect(groupParts([])).toEqual([])
+})
+
+test('the kind the tray app sends decides, so a server named like a built-in is still MCP', () => {
+  const groups = groupParts([
+    { id: 'files', kind: 'files', name: 'files', tokens: 60, pct: 60 },
+    { id: 'mcp:web', kind: 'mcp', name: 'web', tokens: 40, pct: 40 },
+  ])
+  expect(groups.map(group => [group.key, group.label, group.pct])).toEqual([
+    ['files', 'File reads', 60],
+    ['mcp', 'MCP tools (web)', 40],
+  ])
+})
+
+test('two servers with one short name are told apart by their id', () => {
+  const part = (id: string, tokens: number) => ({ id, kind: 'mcp', name: 'chrome', tokens, pct: 0 })
+  const base = { tokens: 100_000, parts: [part('mcp:claude-in-chrome', 1_000), part('mcp:chrome', 50_000)] }
+  // The first grew by 29k, the second not at all
+  const said = turnNotice(base, { ...VIEW, turn: 30_000, parts: [part('mcp:claude-in-chrome', 30_000), part('mcp:chrome', 50_000)] })
+  expect(said).toBe('Context +30k this turn (15% of the window), mostly the chrome MCP server')
 })
 
 test('the stacked bar is exactly as wide as asked', () => {
@@ -214,7 +233,7 @@ test('the pane draws the context, the limits and every session on each surface',
     expect(await ui.find({ type: 'Text', text: /Claude's output\s+33%\s+30k/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Search & web/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /resets in 2h13m/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /800M this session, 2\.0G across 1 sessions/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /800M this session, 2\.0G across 1 session/ })).toBeDefined()
     expect(
       await ui.find({ type: 'Text', text: /claude 500M \+ 3 child processes 300M, 2 MCP servers 200M of it/ }),
     ).toBeDefined()

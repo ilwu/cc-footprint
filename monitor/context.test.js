@@ -52,6 +52,20 @@ test('growth goes to the previous answer first, the rest to what followed it by 
   assert.deepEqual(context.summarize(c), { turn: 5050, src: 'files', src_pct: 20, mcp_pct: 7 });
 });
 
+test('each part says what it is, so an MCP server named like a built-in category stays one', () => {
+  const c = feed([
+    prompt('hello'),
+    answer('m1', 10000, 0, [call('t1', 'mcp__web__fetch'), call('t2', 'WebFetch')]),
+    result('t1', 100),
+    result('t2', 100),
+    answer('m2', 12000, 0),
+  ]);
+
+  const byId = Object.fromEntries(context.detail(c).parts.map(p => [p.id, [p.kind, p.name]]));
+  assert.deepEqual(byId, { base: ['base', 'base'], 'mcp:web': ['mcp', 'web'], web: ['web', 'web'] });
+  assert.equal(context.summarize(c).mcp_pct, 8);
+});
+
 test('a compaction leaves the base and a summary, and starts the turn again', () => {
   const c = feed([
     prompt('hello'),
