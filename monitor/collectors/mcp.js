@@ -15,9 +15,11 @@ const MCP = /mcp|modelcontextprotocol|chrome-native-host/i;
 // Empty when nothing in the line names one. Linux separates the words with
 // NUL.
 function label(cmdline) {
-  for (const raw of (cmdline || '').split(/[\s\0]+/)) {
-    const word = raw.replace(/^["']+|["']+$/g, '');
+  const words = (cmdline || '').split(/[\s\0]+/).map(raw => raw.replace(/^["']+|["']+$/g, ''));
+  for (const [w, word] of words.entries()) {
     if (!MCP.test(word)) continue;
+    // Claude Code serving itself as an MCP server (claude mcp serve)
+    if (word === 'mcp' && words[w + 1] === 'serve') return 'claude mcp serve';
     const parts = word.split(/[\\/]/);
     let i = parts.length - 1;
     while (i > 0 && !MCP.test(parts[i])) i--;

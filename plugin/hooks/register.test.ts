@@ -87,7 +87,7 @@ test('the compaction warning starts at 85% of the way to the threshold', () => {
 
 test('the one-line summary covers context, largest parts and memory', () => {
   expect(summaryLine(VIEW)).toBe(
-    'Context 60% (120k of 200k), +4k this turn. Largest: files 50%, output 25%. Memory: 800M of 2.0G across 1 session.',
+    "Context 60% (120k of 200k), +4k this turn. Largest: File reads 67%, Claude's output 33%. Memory: 800M of 2.0G across 1 session.",
   )
 })
 
@@ -429,4 +429,15 @@ test('with the tray app gone, the last language it named is kept', async ($, on)
   })
   expect(said.text).toContain('上下文 60%')
   expect(said.text).toContain('cc-footprint 后台程序没有运行')
+})
+
+test('the one-line summary names the largest kinds in the language spoken, the setup left out', () => {
+  const parts = [
+    { id: 'base', kind: 'base', name: 'base', tokens: 50_000, pct: 50 },
+    { id: 'files', kind: 'files', name: 'files', tokens: 30_000, pct: 30 },
+    { id: 'shell', kind: 'shell', name: 'shell', tokens: 20_000, pct: 20 },
+  ]
+  const said = summaryLine({ ...VIEW, parts, lang: 'zh-TW' })
+  expect(said).toContain('最大來源：讀檔 30%, 指令輸出 20%。')
+  expect(said).not.toContain('base')
 })

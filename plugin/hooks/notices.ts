@@ -176,8 +176,14 @@ export function summaryLine(now: View): string {
     const turn = now.turn !== null && now.turn > 0 ? tokens(now.turn) : null
     said.push(s.summaryContext(Math.round((100 * now.tokens) / now.window), tokens(now.tokens), tokens(now.window), turn))
   }
-  const top = now.parts.filter(part => part.pct >= 1).slice(0, 3)
-  if (top.length > 0) said.push(s.summaryLargest(top.map(part => `${part.name} ${part.pct}%`).join(', ')))
+  // The largest kinds, by the names the pane's legend gives them (in the
+  // language spoken), leaving out the system prompt and the tool setup,
+  // which nobody can do anything about mid-session
+  const top = groupParts(now.parts, s)
+    .filter(group => group.key !== 'system' && group.pct >= 1)
+    .sort((a, b) => b.tokens - a.tokens)
+    .slice(0, 3)
+  if (top.length > 0) said.push(s.summaryLargest(top.map(group => `${group.label} ${group.pct}%`).join(', ')))
   const own = now.sessions.find(one => one.session === now.sessionId)
   if (own !== undefined && now.memoryTotal !== null) {
     said.push(s.summaryMemory(memory(own.mem), memory(now.memoryTotal), s.sessions(now.sessions.length)))

@@ -24,11 +24,12 @@ const MCP_MIN_AGE_MS = 30000;
 
 // The CLI's own binary. The comparison is case-sensitive on purpose: the
 // desktop app's "Claude.exe" is a different program. The same binary runs
-// as Chrome's bridge (claude --chrome-native-host), which is no session.
-// Any other mention of MCP on its command line (--mcp-config) is a session
-// that uses MCP servers, not one.
+// as Chrome's bridge (claude --chrome-native-host) and as an MCP server of
+// its own (claude mcp serve): neither is a session. Any other mention of MCP
+// on its command line (--mcp-config) is a session that uses MCP servers.
+const NOT_SESSIONS = new Set(['chrome-native-host', 'claude mcp serve']);
 function isCli(p) {
-  return (p.name === 'claude.exe' || p.name === 'claude') && p.mcp !== 'chrome-native-host';
+  return (p.name === 'claude.exe' || p.name === 'claude') && !NOT_SESSIONS.has(p.mcp);
 }
 
 // A session's file dates its start a few seconds after its process began.

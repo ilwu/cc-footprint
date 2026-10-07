@@ -33,6 +33,8 @@ if ($stopped -eq "stopped") {
     Write-Host "  Monitor stopped" -ForegroundColor Green
     # The tray helper leaves with it; give it a moment before its folder goes
     Start-Sleep -Seconds 1
+} elseif ($stopped -like "stuck:*") {
+    Write-Host "  WARNING: the monitor could not be stopped (started as administrator?) - end $($stopped.Substring(6)) on port 19823 yourself" -ForegroundColor Yellow
 } elseif ($stopped -like "other:*") {
     Write-Host "  Port 19823 is held by $($stopped.Substring(6)), which is not cc-footprint - left alone" -ForegroundColor DarkGray
 } else {

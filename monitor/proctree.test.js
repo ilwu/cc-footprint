@@ -143,3 +143,16 @@ test('a session under an MCP server outside every session is counted once, as a 
   assert.equal(sessions.get(21).mem, 400 * MB);
   assert.deepEqual(outside.map(o => [o.name, o.mem]), [['claude-code-mcp', 30 * MB]]);
 });
+
+test('claude serving itself as an MCP server is a server, not a session', () => {
+  const { sessions, outside } = measure([
+    row(10, 1, 400, OLD, 'claude.exe'),
+    row(11, 10, 200, OLD + 1, 'claude.exe', 'claude mcp serve'), // in this session's .mcp.json
+    row(20, 1, 180, OLD, 'claude.exe', 'claude mcp serve'),      // the desktop app's
+  ], new Map(), NOW);
+
+  assert.deepEqual([...sessions.keys()], [10]);
+  assert.equal(sessions.get(10).mcp_count, 1);
+  assert.equal(sessions.get(10).mcp_mem, 200 * MB);
+  assert.deepEqual(outside.map(o => o.name), ['claude mcp serve']);
+});

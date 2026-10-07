@@ -147,8 +147,9 @@ fmt "$sess_mem";   sess_fmt=$FMT
 
 # Without the monitor there is no telling which items are switched on, and
 # nothing to show for the ones it measures (an old figure would pass for a
-# current one): what is left is the default items Claude Code itself supplies
-if [[ -z "$display" ]]; then
+# current one): what is left is the default items Claude Code itself supplies.
+# A monitor that answers with no item on ("display":[]) gets an empty line.
+if [[ -z "$resp" ]]; then
   display='"ctx","five_hour","week","resets","session_id","path"'
 fi
 

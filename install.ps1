@@ -92,6 +92,10 @@ if ($stopped -like "other:*") {
     Write-Host "  ERROR: port 19823 is held by $($stopped.Substring(6)), which is not cc-footprint - left alone" -ForegroundColor Red
     exit 1
 }
+if ($stopped -like "stuck:*") {
+    Write-Host "  ERROR: the running monitor could not be stopped (started as administrator?). End $($stopped.Substring(6)) on port 19823, then run this again." -ForegroundColor Red
+    exit 1
+}
 if ($stopped -eq "stopped") {
     Write-Host "  Stopped the running monitor" -ForegroundColor DarkGray
     Start-Sleep -Seconds 1

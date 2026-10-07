@@ -552,7 +552,7 @@ const es: Strings = {
   children: (self, n, mem) => `claude ${self} + ${n} proceso${n === 1 ? '' : 's'} hijo${n === 1 ? '' : 's'} ${mem}`,
   ofIt: (servers, mem) => `, de ellos ${servers} ${mem}`,
   outside: (servers, mem) => `${servers} fuera de toda sesión: ${mem}`,
-  up: age => `activo hace ${age}`,
+  up: age => `activo desde hace ${age}`,
   noMonitor: 'El programa en segundo plano de cc-footprint no está en marcha: sin cifras de memoria ni desglose.',
 }
 

@@ -163,6 +163,9 @@ function createTray({ config, i18n, m, sessions, configDir, onExit }) {
         onExit();
         return;
       }
+      // config.json as it is now, edits made by hand since the last read
+      // included, so that saving the click does not undo them
+      config.refresh();
       const idx = toggleItems.indexOf(action.item);
       if (idx >= 0) {
         const id = config.items[idx].id;

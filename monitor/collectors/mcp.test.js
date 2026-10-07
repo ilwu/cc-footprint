@@ -17,6 +17,8 @@ test('an MCP server is named by the word of its command line that names it', () 
   // A scoped package run by its path keeps its whole name
   assert.equal(label('node C:\\nm\\@modelcontextprotocol\\server-filesystem\\dist\\index.js'), '@modelcontextprotocol/server-filesystem');
   assert.equal(label('node /nm/@acme/mcp-server-x/index.js'), '@acme/mcp-server-x');
+  // Claude Code serving itself as an MCP server
+  assert.equal(label('"C:\\x\\claude.exe" mcp serve'), 'claude mcp serve');
   // Nothing names one
   assert.equal(label('"C:\\Users\\me\\.local\\bin\\claude.exe"'), '');
   assert.equal(label(''), '');
