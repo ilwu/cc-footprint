@@ -335,10 +335,14 @@ if has duration; then
     add_item "${DIM}${dur_fmt}${R}" "${dur_fmt}"
   fi
 fi
-# Reachable by Remote Control right now (the monitor reads it from the
-# session file each time); nothing while it is off
-if has remote && [[ "$remote" == true ]]; then
-  add_item "${GRN}RC${R}" "RC"
+# Whether Remote Control is on for this session right now (the monitor
+# reads it from the session file each time); nothing when it cannot tell
+if has remote; then
+  if [[ "$remote" == true ]]; then
+    add_item "${GRN}RC:on${R}" "RC:on"
+  elif [[ "$remote" == false ]]; then
+    add_item "${DIM}RC:off${R}" "RC:off"
+  fi
 fi
 if has session_id; then
   add_item "${DIM}${sid:-?}${R}" "${sid:-?}"

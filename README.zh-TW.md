@@ -182,7 +182,7 @@ git pull
 | Claude Memory | 本 session / 全部 session 總計。一個 session 算整棵行程樹：claude 行程、它的 MCP server、工具用的 shell | 開了好幾個 session，找出最吃記憶體的那個關掉或重開 | 開 |
 | MCP Memory | 這個 session 自己的 MCP server：記憶體和個數；沒有就不顯示。不屬於任何 session 的在 `/footprint` 面板 | 看這個 session 有多少是 MCP server 佔的 | 開 |
 | **Session 資訊** | | | |
-| Remote Control | session 開著 Remote Control 時顯示 `RC`，沒開就不顯示；開關後下一次更新就跟上 | 一眼看出哪些 session 可以用手機或網頁接著操作 | 開 |
+| Remote Control | 這個 session 開著 Remote Control 時顯示 `RC:on`，沒開時顯示 `RC:off`；開關後下一次更新就跟上 | 一眼看出哪些 session 可以用手機或網頁接著操作 | 開 |
 | Session ID | 完整 UUID | 之後用 `claude --resume <id>` 接回這個 session，或回報問題時附上 | 開 |
 | Project Path | 專案根目錄 | 同時開好幾個視窗時，一眼分辨這個視窗在哪個專案，避免在錯的專案下指令 | 開 |
 | Model + Effort | 目前使用的模型和 effort 等級（如 `Opus 5.5 · high`） | 用 `/model` 或 `/effort` 切換過，或不同專案預設不同時，確認現在用的是哪個。Effort 越高，進到 context 的思考內容越多 | 關 |

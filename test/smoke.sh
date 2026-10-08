@@ -200,7 +200,7 @@ printf '%s\n' "$line" | sed 's/^/     /'
 [[ "$line" == *"31% ↑18k mcp 3%"* ]] || fail "the statusline does not show this turn's growth and MCP's share"
 [[ "$line" == *"34% 2h13m"* ]] || fail "the statusline does not show the reset countdown"
 [[ "$line" == *"/work/api"* ]] || fail "the statusline does not show the project path"
-[[ "$line" == *" RC "* ]] || fail "the statusline does not show that Remote Control is on"
+[[ "$line" == *"RC:on"* ]] || fail "the statusline does not show that Remote Control is on"
 # With the window 90% full MCP's share is 8%, one cell of the bar in its colour
 raw="$(printf '{"session_id":"%s","context_window":{"used_percentage":90}}' "$sid" | sl)"
 [[ "$raw" == *$'\033[35m▊'* ]] || fail "no cell of the context bar is in the MCP colour: $raw"

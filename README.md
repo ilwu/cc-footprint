@@ -182,7 +182,7 @@ Watch the `mcp` share of `Ctx` for the effect. To change the subagent's model, e
 | Claude Memory | This session / all sessions. A session is its whole process tree: the claude process, its MCP servers, the shells its tools use | With several sessions open, find the heavy one and close or restart it | On |
 | MCP Memory | This session's own MCP servers: memory and count; nothing when it has none. The ones outside every session are in the `/footprint` pane | How much of this session is MCP servers | On |
 | **Session** | | | |
-| Remote Control | `RC` while the session can be reached by Remote Control; nothing while it cannot. It follows the switch at the next render | Tell at a glance which sessions you can carry on from your phone or the web | On |
+| Remote Control | `RC:on` while Remote Control is on for the session, `RC:off` while it is not; it follows the switch at the next render | Tell at a glance which sessions you can carry on from your phone or the web | On |
 | Session ID | The full UUID | `claude --resume <id>` later, or attach it to a bug report | On |
 | Project Path | The project's root | With several windows open, tell at a glance which project this one is in | On |
 | Model + Effort | The current model and effort level (`Opus 5.5 · high`) | After `/model` or `/effort`, or with different defaults per project, confirm which is in use. Higher effort puts more thinking into the context | Off |
