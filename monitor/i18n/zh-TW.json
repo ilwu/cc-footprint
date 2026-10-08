@@ -18,6 +18,7 @@
   "item.week": "每週用量",
   "item.resets": "額度重置倒數",
   "item.cost": "Session 花費 ($)",
+  "item.remote": "Remote Control",
   "item.session_id": "Session ID",
   "item.path": "專案路徑",
   "item.model": "模型 + Effort",

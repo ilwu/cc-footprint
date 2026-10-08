@@ -19,6 +19,7 @@
   "item.week": "Uso semanal",
   "item.resets": "Tiempo hasta el reinicio",
   "item.cost": "Costo de la sesión ($)",
+  "item.remote": "Remote Control",
   "item.session_id": "ID de sesión",
   "item.path": "Ruta del proyecto",
   "item.model": "Modelo + Effort",

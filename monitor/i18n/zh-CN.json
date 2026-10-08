@@ -18,6 +18,7 @@
   "item.week": "每周用量",
   "item.resets": "额度重置倒计时",
   "item.cost": "会话费用 ($)",
+  "item.remote": "Remote Control",
   "item.session_id": "会话 ID",
   "item.path": "项目路径",
   "item.model": "模型 + Effort",

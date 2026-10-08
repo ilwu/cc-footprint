@@ -56,3 +56,19 @@ test('a missing sessions folder is no session at all', () => {
   s.scan();
   assert.equal(s.pids.size, 0);
 });
+
+test("Remote Control is read from the session file at each ask: on while it holds a bridge id", () => {
+  const dir = dirWith({
+    "10.json": JSON.stringify({ pid: 10, sessionId: "aa", bridgeSessionId: "session_01abc" }),
+    "20.json": JSON.stringify({ pid: 20, sessionId: "bb", bridgeSessionId: null }),
+    "30.json": JSON.stringify({ pid: 30, sessionId: "cc" }),
+  });
+  const s = createSessions(dir);
+  assert.equal(s.remoteControl(10), true);
+  assert.equal(s.remoteControl(20), false);
+  assert.equal(s.remoteControl(30), false);
+  assert.equal(s.remoteControl(99), null);
+  // Turned off since: the next ask says so, with no rescan
+  fs.writeFileSync(path.join(dir, "10.json"), JSON.stringify({ pid: 10, sessionId: "aa", bridgeSessionId: null }));
+  assert.equal(s.remoteControl(10), false);
+});

@@ -19,6 +19,7 @@
   "item.week": "Wochennutzung",
   "item.resets": "Zeit bis zum Zurücksetzen",
   "item.cost": "Sitzungskosten ($)",
+  "item.remote": "Remote Control",
   "item.session_id": "Sitzungs-ID",
   "item.path": "Projektpfad",
   "item.model": "Modell + Effort",

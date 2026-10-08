@@ -104,7 +104,7 @@ session_pid="$(cat "$HOME/session.pid")"
 mkdir -p "$HOME/.claude/sessions" "$HOME/.claude/projects/-work-api"
 # startedAt as Claude Code writes it, a moment after the process began: the
 # monitor holds a process younger than its session file to be another one
-printf '{"pid":%s,"sessionId":"%s","cwd":"/work/api","name":"smoke","startedAt":%s}\n' "$session_pid" "$sid" "$(( $(date +%s) * 1000 ))" \
+printf '{"pid":%s,"sessionId":"%s","cwd":"/work/api","name":"smoke","startedAt":%s,"bridgeSessionId":"session_smoke"}\n' "$session_pid" "$sid" "$(( $(date +%s) * 1000 ))" \
   > "$HOME/.claude/sessions/$session_pid.json"
 # Three responses: the context grows from 50k to 68k; 2k of it is the first
 # answer, 10k a file it read, 5.9k a page an MCP tool read
@@ -200,6 +200,7 @@ printf '%s\n' "$line" | sed 's/^/     /'
 [[ "$line" == *"31% ↑18k mcp 3%"* ]] || fail "the statusline does not show this turn's growth and MCP's share"
 [[ "$line" == *"34% 2h13m"* ]] || fail "the statusline does not show the reset countdown"
 [[ "$line" == *"/work/api"* ]] || fail "the statusline does not show the project path"
+[[ "$line" == *" RC "* ]] || fail "the statusline does not show that Remote Control is on"
 # With the window 90% full MCP's share is 8%, one cell of the bar in its colour
 raw="$(printf '{"session_id":"%s","context_window":{"used_percentage":90}}' "$sid" | sl)"
 [[ "$raw" == *$'\033[35m▊'* ]] || fail "no cell of the context bar is in the MCP colour: $raw"

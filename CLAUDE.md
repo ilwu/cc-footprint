@@ -29,7 +29,7 @@ Each module but `app.js` is a factory taking its paths and the state it needs, s
 None of these formats is documented; `test/fixtures/` holds a capture of each, with how it was taken (its README). When a release changes one, capture again and rerun the tests.
 
 - **Statusline stdin** — read with bash regexes at the top of `statusline.sh`. Keys that occur more than once (`used_percentage` is in `context_window` and in each rate limit) must be looked for inside their own object.
-- **Session files** `~/.claude/sessions/<pid>.json` — `pid`, `sessionId`, `cwd`, `name`, `startedAt` (epoch ms, a few seconds after the process began; a process much younger than it is a reused pid). A killed session leaves its file behind.
+- **Session files** `~/.claude/sessions/<pid>.json` — `pid`, `sessionId`, `cwd`, `name`, `startedAt` (epoch ms, a few seconds after the process began; a process much younger than it is a reused pid), `bridgeSessionId` (set while Remote Control is on, `null` once it is turned off; read afresh at each `/session`). A killed session leaves its file behind.
 - **Transcripts** — the rows `context.js` reads are listed in its `track()`. `transcripts.js` pre-filters lines by substring (`"type":"assistant"`), which relies on Claude Code writing compact JSON.
 - **settings.json** — `statusLine` (ours: see "Installing without overwriting") and `enabledPlugins["cc-footprint@…"]`, which drives the statusline's `/footprint` hint.
 

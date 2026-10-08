@@ -18,6 +18,7 @@
   "item.week": "週間の使用量",
   "item.resets": "制限リセットまでの時間",
   "item.cost": "セッション料金 ($)",
+  "item.remote": "Remote Control",
   "item.session_id": "セッション ID",
   "item.path": "プロジェクトのパス",
   "item.model": "モデル + Effort",

@@ -93,6 +93,7 @@ function createHandler({ port, m, config, i18n, sessions, transcripts, plugin, c
       if (pid !== undefined && !m.store.has(pid)) collectSoon();
       const status = statusFor(pid);
       const c = config.values;
+      if (c.remote && pid !== undefined) status.remote_control = sessions.remoteControl(pid);
       if (c.ctx_grow || c.ctx_src || c.ctx_mcp) {
         const sum = context.summarize(transcripts.read(s[1]));
         if (sum) {

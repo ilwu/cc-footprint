@@ -18,6 +18,7 @@
   "item.week": "주간 사용량",
   "item.resets": "한도 초기화까지 남은 시간",
   "item.cost": "세션 비용 ($)",
+  "item.remote": "Remote Control",
   "item.session_id": "세션 ID",
   "item.path": "프로젝트 경로",
   "item.model": "모델 + Effort",

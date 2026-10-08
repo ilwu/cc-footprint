@@ -94,7 +94,7 @@ fi
 
 # Parse API response
 sys_pct="" cld_total="" sess_mem="" mcp_total="" mcp_count="" display=""
-ctx_turn="" ctx_src="" ctx_src_pct="" ctx_mcp_pct="" plugin=""
+ctx_turn="" ctx_src="" ctx_src_pct="" ctx_mcp_pct="" plugin="" remote=""
 if [[ -n "$resp" ]]; then
   [[ "$resp" =~ \"system_pct\":([0-9]+) ]]    && sys_pct="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"claude_total\":([0-9]+) ]]   && cld_total="${BASH_REMATCH[1]}"
@@ -103,6 +103,7 @@ if [[ -n "$resp" ]]; then
   [[ "$resp" =~ \"mcp_count\":([0-9]+) ]]      && mcp_count="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"ctx_mcp_pct\":([0-9]+) ]]    && ctx_mcp_pct="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"plugin\":(true|false) ]]     && plugin="${BASH_REMATCH[1]}"
+  [[ "$resp" =~ \"remote_control\":(true|false) ]] && remote="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"ctx_turn\":(-?[0-9]+) ]]     && ctx_turn="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"ctx_src\":\"([^\"]+)\" ]]    && ctx_src="${BASH_REMATCH[1]}"
   [[ "$resp" =~ \"ctx_src_pct\":([0-9]+) ]]    && ctx_src_pct="${BASH_REMATCH[1]}"
@@ -333,6 +334,11 @@ if has duration; then
     fi
     add_item "${DIM}${dur_fmt}${R}" "${dur_fmt}"
   fi
+fi
+# Reachable by Remote Control right now (the monitor reads it from the
+# session file each time); nothing while it is off
+if has remote && [[ "$remote" == true ]]; then
+  add_item "${GRN}RC${R}" "RC"
 fi
 if has session_id; then
   add_item "${DIM}${sid:-?}${R}" "${sid:-?}"

@@ -42,6 +42,19 @@ function createSessions(dir, { retryMs = 5000 } = {}) {
     }
   };
 
+  // Whether the session is reachable by Remote Control now: its file holds
+  // a bridgeSessionId while it is on and null once it is turned off. Read
+  // afresh on every call, so that the statusline follows a switch at its
+  // next render; null when the file cannot be read.
+  self.remoteControl = pid => {
+    try {
+      const s = JSON.parse(fs.readFileSync(path.join(dir, `${pid}.json`), 'utf8'));
+      return !!s.bridgeSessionId;
+    } catch {
+      return null;
+    }
+  };
+
   self.pidFor = (sid, now = Date.now()) => {
     let pid = self.pids.get(sid);
     if (pid === undefined && now - lastScanAt >= retryMs) {

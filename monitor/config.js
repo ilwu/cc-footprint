@@ -20,6 +20,7 @@ const ITEMS = [
   { id: 'week',       label: 'Weekly Usage',              group: 'usage',   default: true  },
   { id: 'resets',     label: 'Limit Reset Countdown',     group: 'usage',   default: true  },
   { id: 'cost',       label: 'Session Cost ($)',          group: 'usage',   default: false },
+  { id: 'remote',     label: 'Remote Control',            group: 'session', default: true  },
   { id: 'session_id', label: 'Session ID',                group: 'session', default: true  },
   { id: 'path',       label: 'Project Path',              group: 'session', default: true  },
   { id: 'model',      label: 'Model + Effort',            group: 'session', default: false },

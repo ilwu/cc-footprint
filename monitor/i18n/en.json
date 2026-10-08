@@ -19,6 +19,7 @@
   "item.week": "Weekly Usage",
   "item.resets": "Limit Reset Countdown",
   "item.cost": "Session Cost ($)",
+  "item.remote": "Remote Control",
   "item.session_id": "Session ID",
   "item.path": "Project Path",
   "item.model": "Model + Effort",

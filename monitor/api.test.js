@@ -26,7 +26,7 @@ function fakes({ measuredAgo = 1000 } = {}) {
   const config = { items: ITEMS, values, broken: false, refresh() {}, display: () => ITEMS.filter(i => values[i.id]).map(i => i.id) };
   const sessions = {
     pids: new Map([[SID, 10]]), info: new Map([[SID, { cwd: '/w/api', name: 'api' }]]),
-    scan() {}, pidFor: sid => (sid === SID ? 10 : undefined),
+    scan() {}, pidFor: sid => (sid === SID ? 10 : undefined), remoteControl: pid => pid === 10,
   };
   // A context of 12k: 10k base, 1.5k file reads, 0.5k an MCP server
   const ctx = { size: 12000, out: 0, turnStart: 10000, cats: { base: 10000, files: 1500, 'mcp:chrome': 500 } };
@@ -59,6 +59,7 @@ test('/session answers with the session, the machine and the context', () => {
   assert.equal(r.json.ctx_turn, 2000);
   assert.equal(r.json.ctx_src, 'files');
   assert.equal(r.json.ctx_mcp_pct, 4);
+  assert.equal(r.json.remote_control, true);
   assert.deepEqual(r.json.display, ITEMS.map(i => i.id));
 });
 
