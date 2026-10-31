@@ -56,6 +56,7 @@ None of these formats is documented; `test/fixtures/` holds a capture of each, w
 - **Wrap to the `COLUMNS` Claude Code passes in** — the statusline process gets the live terminal width that way (`tput cols` always says 80 inside a pipe). The width the monitor measures is only a fallback for when `COLUMNS` is missing: on Windows it is window pixels / 8, an overestimate, and up to 60 s stale.
 - **Never measure display width with `${#s}` alone** — Claude Code starts the statusline with no locale set, so bash counts bytes and a 10-column bar counts as 30. The second argument of `add_item` is an ASCII stand-in for bars and arrows, and `width()` converts (CJK counts as 2 columns).
 - **systray2: `update-item`, never `update-menu`** — update-menu breaks onClick.
+- **The tray is put up anew after the machine wakes** — on Windows the helper once stayed up after a sleep with its icon shown and its menu dead, while the measuring went on. `app.js` watches for a tick that comes a minute late (timers stop during sleep) and calls `tray.restart()`, which asks the old helper to leave, ends it after 3 s if it does not, and starts a new one.
 - **No prices** — nothing here may depend on what a token costs: prices change and this tool cannot follow them. The cost shown is the one Claude Code reports.
 
 ## Adding a display item
@@ -141,6 +142,7 @@ Kept here so that nobody takes these as tested:
 - The macOS menu bar icon: CI runs macOS without a screen. The monitor itself, its launchd agent and the statusline under bash 3.2 are tested there.
 - A real Claude Code session on macOS or Linux desktops (CI uses a stand-in session).
 - The plugin's toasts in a real session (they are covered by `claude plugin test`).
+- That sleep is what kills the tray menu, and that `tray.restart()` after waking brings it back: inferred from one occurrence that a restart of the monitor cured. The restart itself is checked (the old helper leaves, one new one runs).
 - Windows fallbacks: running the tray helper under its own name failing over to the shipped name, and an npm-installed Claude Code (running as node.exe, known by its session file).
 
 ## Plugin (mod)

@@ -137,7 +137,25 @@ server.listen(PORT, '127.0.0.1', () => {
   tray.start().catch(e => console.error('[tray]', e.message));
   collect();
   setInterval(collect, INTERVAL);
+  watchForWake();
 });
+
+// Timers do not run while the machine sleeps, so a tick that comes far later
+// than it was due means it has just woken up: the tray helper is put up
+// anew then, as its menu may have stopped opening (tray.js, restart).
+const WAKE_TICK = 10000;
+const WAKE_GAP = 60000;
+function watchForWake() {
+  let last = Date.now();
+  setInterval(() => {
+    const now = Date.now();
+    if (now - last > WAKE_GAP) {
+      console.log(`[wake] ${Math.round((now - last) / 1000)} s without a tick: restarting the tray`);
+      tray.restart().catch(e => console.error('[tray]', e.message));
+    }
+    last = now;
+  }, WAKE_TICK);
+}
 
 server.on('error', err => {
   if (err.code === 'EADDRINUSE') {

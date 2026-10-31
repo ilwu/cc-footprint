@@ -207,11 +207,19 @@ function createTray({ config, i18n, m, sessions, configDir, onExit }) {
       items.push(toggleItems[i]);
     });
     items.push(SysTray.separator, langMenu, exitItem);
+    shown = { SysTray, items };
+    await show();
+  }
 
+  // What start() put up, for restart() to put up again
+  let shown = null;
+  let restarting = false;
+
+  async function show() {
     // Under our own name first; the helper's own name where that cannot run
     for (const renamed of [true, false]) {
       try {
-        await open(SysTray, items, renamed);
+        await open(shown.SysTray, shown.items, renamed);
         console.log('[tray] ready');
         // The first measurement may have come in while the helper started
         update();
@@ -223,7 +231,25 @@ function createTray({ config, i18n, m, sessions, configDir, onExit }) {
     }
   }
 
-  return { start, update };
+  // A new helper in place of the running one. After the machine has slept
+  // the helper on Windows can stay up with its icon shown while its menu no
+  // longer opens, and only a new helper brings the menu back. The old one is
+  // asked to leave; one that does not answer within a few seconds is ended.
+  async function restart() {
+    if (!systray || restarting) return;
+    restarting = true;
+    const old = systray;
+    systray = null;
+    try {
+      await Promise.race([old.kill(false).catch(() => {}), new Promise(r => setTimeout(r, 3000))]);
+      try { old._process.kill(); } catch {}
+      await show();
+    } finally {
+      restarting = false;
+    }
+  }
+
+  return { start, update, restart };
 }
 
 module.exports = { createTray };
