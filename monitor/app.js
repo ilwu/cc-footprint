@@ -67,17 +67,15 @@ function collect() {
   // config.json edited by hand: the tray's ticks follow it (tray.update)
   config.refresh();
 
-  // Forget the transcripts of sessions that have ended
-  sessions.scan();
-  transcripts.prune(new Set(sessions.pids.keys()));
-
-  const pids = new Set(sessions.pids.values());
-  const started = new Map(sessions.start);
-  try {
+  let pids, started;
+  sessions.scan().then(() => {
+    // Forget the transcripts of sessions that have ended
+    transcripts.prune(new Set(sessions.pids.keys()));
+    pids = new Set(sessions.pids.values());
+    started = new Map(sessions.start);
     collector.collect(pids, done);
-  } catch (e) {
-    done(e);
-  }
+  }).catch(e => done(e));
+
   function done(err, seen) {
     collecting = false;
     if (err) {

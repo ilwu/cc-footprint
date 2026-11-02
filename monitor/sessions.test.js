@@ -13,7 +13,7 @@ function dirWith(files) {
   return dir;
 }
 
-test('session files map each session to its process, with its folder, name and start', () => {
+test('session files map each session to its process, with its folder, name and start', async () => {
   const dir = dirWith({
     '10.json': JSON.stringify({ pid: 10, sessionId: 'aa', cwd: '/w/api', name: 'api', startedAt: 1000 }),
     '20.json': JSON.stringify({ pid: 20, sessionId: 'bb' }),
@@ -21,7 +21,7 @@ test('session files map each session to its process, with its folder, name and s
     'notes.txt': 'not a session',
   });
   const s = createSessions(dir);
-  s.scan();
+  await s.scan();
 
   assert.deepEqual([...s.pids], [['aa', 10], ['bb', 20]]);
   assert.deepEqual(s.info.get('aa'), { cwd: '/w/api', name: 'api' });
@@ -29,46 +29,59 @@ test('session files map each session to its process, with its folder, name and s
   assert.deepEqual([...s.start], [[10, 1000]]);
 });
 
-test('a session id in two files is the process that started later', () => {
+test('a session id in two files is the process that started later', async () => {
   // A killed session left 10.json; resuming it wrote 20.json
   const dir = dirWith({
     '20.json': JSON.stringify({ pid: 20, sessionId: 'aa', startedAt: 5000 }),
     '10.json': JSON.stringify({ pid: 10, sessionId: 'aa', startedAt: 1000 }),
   });
   const s = createSessions(dir);
-  s.scan();
+  await s.scan();
 
   assert.equal(s.pids.get('aa'), 20);
 });
 
-test('an unknown session has the files read again, but not on every request', () => {
-  const dir = dirWith({});
-  const s = createSessions(dir, { retryMs: 5000 });
-  assert.equal(s.pidFor('aa', 100000), undefined);
+test('while the files are being read, the last full scan is what is seen', async () => {
+  const dir = dirWith({ '10.json': JSON.stringify({ pid: 10, sessionId: 'aa' }) });
+  const s = createSessions(dir);
+  await s.scan();
 
-  fs.writeFileSync(path.join(dir, '10.json'), JSON.stringify({ pid: 10, sessionId: 'aa' }));
-  assert.equal(s.pidFor('aa', 101000), undefined); // within 5 s of the last look
-  assert.equal(s.pidFor('aa', 105000), 10);
+  fs.writeFileSync(path.join(dir, '20.json'), JSON.stringify({ pid: 20, sessionId: 'bb' }));
+  const scanning = s.scan();
+  assert.equal(s.scan(), scanning); // one scan at a time
+  assert.deepEqual([...s.pids], [['aa', 10]]);
+  await scanning;
+  assert.deepEqual([...s.pids], [['aa', 10], ['bb', 20]]);
 });
 
-test('a missing sessions folder is no session at all', () => {
+test('an unknown session has the files read again, but not on every request', async () => {
+  const dir = dirWith({});
+  const s = createSessions(dir, { retryMs: 5000 });
+  assert.equal(await s.pidFor('aa', 100000), undefined);
+
+  fs.writeFileSync(path.join(dir, '10.json'), JSON.stringify({ pid: 10, sessionId: 'aa' }));
+  assert.equal(await s.pidFor('aa', 101000), undefined); // within 5 s of the last look
+  assert.equal(await s.pidFor('aa', 105000), 10);
+});
+
+test('a missing sessions folder is no session at all', async () => {
   const s = createSessions(path.join(os.tmpdir(), 'ccf-no-such-dir-' + process.pid));
-  s.scan();
+  await s.scan();
   assert.equal(s.pids.size, 0);
 });
 
-test("Remote Control is read from the session file at each ask: on while it holds a bridge id", () => {
+test("Remote Control is read from the session file at each ask: on while it holds a bridge id", async () => {
   const dir = dirWith({
     "10.json": JSON.stringify({ pid: 10, sessionId: "aa", bridgeSessionId: "session_01abc" }),
     "20.json": JSON.stringify({ pid: 20, sessionId: "bb", bridgeSessionId: null }),
     "30.json": JSON.stringify({ pid: 30, sessionId: "cc" }),
   });
   const s = createSessions(dir);
-  assert.equal(s.remoteControl(10), true);
-  assert.equal(s.remoteControl(20), false);
-  assert.equal(s.remoteControl(30), false);
-  assert.equal(s.remoteControl(99), null);
+  assert.equal(await s.remoteControl(10), true);
+  assert.equal(await s.remoteControl(20), false);
+  assert.equal(await s.remoteControl(30), false);
+  assert.equal(await s.remoteControl(99), null);
   // Turned off since: the next ask says so, with no rescan
   fs.writeFileSync(path.join(dir, "10.json"), JSON.stringify({ pid: 10, sessionId: "aa", bridgeSessionId: null }));
-  assert.equal(s.remoteControl(10), false);
+  assert.equal(await s.remoteControl(10), false);
 });

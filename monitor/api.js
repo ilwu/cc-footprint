@@ -8,17 +8,35 @@
 
 const context = require('./context');
 
+const TIME_UP = Symbol('time up');
+
 // `m` is the monitor's state (see app.js): the measured trees and when they
 // were measured, the window widths, the MCP servers outside every session,
 // the counters. Figures older than `staleMs` (the process query keeps
 // failing) are not passed on: an old figure would pass for a current one.
-function createHandler({ port, m, config, i18n, sessions, transcripts, plugin, collectSoon, staleMs }) {
+//
+// What has to be read from a file (the transcript, the session files) is
+// waited for at most `fileWaitMs`: on Windows an open can be held up for
+// seconds, and the statusline gives up after one. The answer then goes out
+// without those figures, and what is read meanwhile is there for the next.
+function createHandler({ port, m, config, i18n, sessions, transcripts, plugin, collectSoon, staleMs, fileWaitMs = 300 }) {
   // A page in a browser can reach this port by pointing a name of its own at
   // 127.0.0.1 (DNS rebinding), and would read every session's name and
   // folder. Its requests carry that name as Host, so only our own are
   // answered; "l" is what statusline.sh sends, the shortest that will do.
   const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, 'l']);
   const fresh = () => m.lastMeasuredAt > 0 && Date.now() - m.lastMeasuredAt < staleMs;
+
+  // One time limit for all the reads of a request: wait(p) is p's value, or
+  // undefined once the time is up
+  function budget() {
+    let timer;
+    const up = new Promise(resolve => { timer = setTimeout(resolve, fileWaitMs, TIME_UP); });
+    return {
+      wait: p => Promise.race([p, up]).then(v => (v === TIME_UP ? undefined : v)),
+      end: () => clearTimeout(timer),
+    };
+  }
 
   function statusFor(pid) {
     const ok = fresh();
@@ -41,7 +59,7 @@ function createHandler({ port, m, config, i18n, sessions, transcripts, plugin, c
     };
   }
 
-  function answer(req, res) {
+  async function answer(req, res) {
     res.setHeader('Content-Type', 'application/json');
     const host = req.headers.host;
     if (host !== undefined && !hosts.has(host.toLowerCase())) {
@@ -63,7 +81,9 @@ function createHandler({ port, m, config, i18n, sessions, transcripts, plugin, c
 
     // GET /sessions — every running session with its memory, largest first
     if (req.url === '/sessions') {
-      sessions.scan();
+      // Not read through in time: the last full scan
+      const b = budget();
+      try { await b.wait(sessions.scan()); } finally { b.end(); }
       const list = [];
       for (const [sid, pid] of sessions.pids) {
         const d = fresh() ? m.store.get(pid) : undefined;
@@ -87,21 +107,31 @@ function createHandler({ port, m, config, i18n, sessions, transcripts, plugin, c
     if (s) {
       config.refresh();
       plugin.check();
-      const pid = sessions.pidFor(s[1]);
-      // Session started after the last collect: refresh now so the next
-      // statusline render has data instead of waiting a full interval.
-      if (pid !== undefined && !m.store.has(pid)) collectSoon();
-      const status = statusFor(pid);
       const c = config.values;
-      if (c.remote && pid !== undefined) status.remote_control = sessions.remoteControl(pid);
-      if (c.ctx_grow || c.ctx_src || c.ctx_mcp) {
-        const sum = context.summarize(transcripts.read(s[1]));
+      const b = budget();
+      let status;
+      try {
+        // A session not known yet has the session files read again; not
+        // read in time, it is answered as one not known
+        const pid = await b.wait(sessions.pidFor(s[1]));
+        // Session started after the last collect: refresh now so the next
+        // statusline render has data instead of waiting a full interval.
+        if (pid !== undefined && !m.store.has(pid)) collectSoon();
+        const [remote, ctx] = await Promise.all([
+          c.remote && pid !== undefined ? b.wait(sessions.remoteControl(pid)) : undefined,
+          c.ctx_grow || c.ctx_src || c.ctx_mcp ? b.wait(transcripts.read(s[1])) : undefined,
+        ]);
+        status = statusFor(pid);
+        if (remote !== undefined) status.remote_control = remote;
+        const sum = ctx && context.summarize(ctx);
         if (sum) {
           status.ctx_turn = sum.turn;
           status.ctx_src = sum.src;
           status.ctx_src_pct = sum.src_pct;
           status.ctx_mcp_pct = sum.mcp_pct;
         }
+      } finally {
+        b.end();
       }
       return res.end(JSON.stringify(status));
     }
@@ -109,7 +139,10 @@ function createHandler({ port, m, config, i18n, sessions, transcripts, plugin, c
     // GET /context/:sessionId — everything the session's context is made of
     const c = req.url.match(/^\/context\/([0-9a-fA-F-]+)$/);
     if (c) {
-      return res.end(JSON.stringify(context.detail(transcripts.read(c[1]))));
+      const b = budget();
+      let ctx;
+      try { ctx = await b.wait(transcripts.read(c[1])); } finally { b.end(); }
+      return res.end(JSON.stringify(context.detail(ctx || null)));
     }
 
     // GET /status/:pid — single session + summary + display config
@@ -131,16 +164,13 @@ function createHandler({ port, m, config, i18n, sessions, transcripts, plugin, c
     res.end('{}');
   }
 
-  return (req, res) => {
-    try {
-      answer(req, res);
-    } catch (e) {
-      // An odd request or file costs that one answer, not the monitor
-      console.error('[http]', req.url, e.message);
-      if (!res.headersSent) res.writeHead(500);
-      res.end('{}');
-    }
-  };
+  // The promise is for the tests, which wait for the answer
+  return (req, res) => answer(req, res).catch(e => {
+    // An odd request or file costs that one answer, not the monitor
+    console.error('[http]', req.url, e.message);
+    if (!res.headersSent) res.writeHead(500);
+    res.end('{}');
+  });
 }
 
 module.exports = { createHandler };

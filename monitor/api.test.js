@@ -26,27 +26,30 @@ function fakes({ measuredAgo = 1000 } = {}) {
   const config = { items: ITEMS, values, broken: false, refresh() {}, display: () => ITEMS.filter(i => values[i.id]).map(i => i.id) };
   const sessions = {
     pids: new Map([[SID, 10]]), info: new Map([[SID, { cwd: '/w/api', name: 'api' }]]),
-    scan() {}, pidFor: sid => (sid === SID ? 10 : undefined), remoteControl: pid => pid === 10,
+    scan: async () => {}, pidFor: async sid => (sid === SID ? 10 : undefined), remoteControl: async pid => pid === 10,
   };
   // A context of 12k: 10k base, 1.5k file reads, 0.5k an MCP server
   const ctx = { size: 12000, out: 0, turnStart: 10000, cats: { base: 10000, files: 1500, 'mcp:chrome': 500 } };
-  const transcripts = { read: sid => (sid === SID ? ctx : null) };
+  const transcripts = { read: async sid => (sid === SID ? ctx : null) };
   const plugin = { installed: true, check() {} };
   const i18n = { codes: ['en', 'ja'], resolve: setting => (setting === 'ja' ? 'ja' : 'en') };
-  return { port: 19823, m, config, i18n, sessions, transcripts, plugin, collectSoon() {}, staleMs: 180000 };
+  return { port: 19823, m, config, i18n, sessions, transcripts, plugin, collectSoon() {}, staleMs: 180000, fileWaitMs: 50 };
 }
 
-function ask(handler, url, host = 'l') {
+async function ask(handler, url, host = 'l') {
   const res = { status: 200, headers: {}, body: '', headersSent: false };
   res.setHeader = (k, v) => { res.headers[k] = v; };
   res.writeHead = code => { res.status = code; res.headersSent = true; };
   res.end = body => { res.body = body || ''; };
-  handler({ url, headers: host === null ? {} : { host } }, res);
+  await handler({ url, headers: host === null ? {} : { host } }, res);
   return { status: res.status, json: res.body ? JSON.parse(res.body) : null, raw: res.body };
 }
 
-test('/session answers with the session, the machine and the context', () => {
-  const r = ask(createHandler(fakes()), '/session/' + SID);
+// A file whose open is held up (as an antivirus can, for seconds)
+const never = () => new Promise(() => {});
+
+test('/session answers with the session, the machine and the context', async () => {
+  const r = await ask(createHandler(fakes()), '/session/' + SID);
   assert.equal(r.status, 200);
   assert.equal(r.json.mem, 300 * MB);
   assert.equal(r.json.claude_total, 300 * MB);
@@ -66,12 +69,38 @@ test('/session answers with the session, the machine and the context', () => {
 // statusline.sh reads this answer with bash regexes, each taking the first
 // match of "key": — so every key it reads must be in the answer once, with
 // a plain value (a nested object could carry the same key again)
-test('every key the statusline reads is in /session once, flat', () => {
+test('a file read that is held up costs only its own figures, after a short wait', async () => {
+  const f = fakes();
+  f.transcripts.read = never;
+  f.sessions.remoteControl = never;
+  const t0 = Date.now();
+  const r = await ask(createHandler(f), '/session/' + SID);
+  assert.ok(Date.now() - t0 < 1000, 'answered within the statusline\'s second');
+  assert.equal(r.json.mem, 300 * MB);
+  assert.equal(r.json.system_pct, 55);
+  assert.equal('remote_control' in r.json, false);
+  assert.equal('ctx_turn' in r.json, false);
+
+  // A session not known yet, its files held up: answered as one not known
+  const g = fakes();
+  g.sessions.pidFor = never;
+  const s = await ask(createHandler(g), '/session/' + SID);
+  assert.equal(s.json.mem, null);
+  assert.equal(s.json.system_pct, 55);
+
+  // The pane's composition, and the session list from the last full scan
+  assert.equal((await ask(createHandler(f), '/context/' + SID)).json, null);
+  const h = fakes();
+  h.sessions.scan = never;
+  assert.equal((await ask(createHandler(h), '/sessions')).json.sessions[0].session, SID);
+});
+
+test('every key the statusline reads is in /session once, flat', async () => {
   const script = fs.readFileSync(path.join(__dirname, '..', 'statusline', 'statusline.sh'), 'utf8');
   const keys = [...script.matchAll(/\[\[ "\$resp" =~ \\"(\w+)\\":/g)].map(m => m[1]);
   assert.ok(keys.length >= 10, `found only ${keys.length} keys in statusline.sh`);
 
-  const r = ask(createHandler(fakes()), '/session/' + SID);
+  const r = await ask(createHandler(fakes()), '/session/' + SID);
   for (const key of keys) {
     const hits = r.raw.split(`"${key}":`).length - 1;
     assert.equal(hits, 1, `"${key}": appears ${hits} times in ${r.raw}`);
@@ -82,8 +111,8 @@ test('every key the statusline reads is in /session once, flat', () => {
   }
 });
 
-test('figures measured too long ago are not passed on', () => {
-  const r = ask(createHandler(fakes({ measuredAgo: 600000 })), '/session/' + SID);
+test('figures measured too long ago are not passed on', async () => {
+  const r = await ask(createHandler(fakes({ measuredAgo: 600000 })), '/session/' + SID);
   assert.equal(r.json.mem, null);
   assert.equal(r.json.claude_total, null);
   assert.equal(r.json.system_pct, null);
@@ -91,13 +120,13 @@ test('figures measured too long ago are not passed on', () => {
   // What does not come from the measurement still does
   assert.equal(r.json.ctx_turn, 2000);
 
-  const s = ask(createHandler(fakes({ measuredAgo: 600000 })), '/sessions');
+  const s = await ask(createHandler(fakes({ measuredAgo: 600000 })), '/sessions');
   assert.deepEqual(s.json.sessions, []);
   assert.deepEqual(s.json.outside, []);
 });
 
-test('/sessions lists the sessions and the MCP servers outside them', () => {
-  const r = ask(createHandler(fakes()), '/sessions');
+test('/sessions lists the sessions and the MCP servers outside them', async () => {
+  const r = await ask(createHandler(fakes()), '/sessions');
   assert.deepEqual(r.json.sessions, [{
     session: SID, pid: 10, cwd: '/w/api', name: 'api', mem: 300 * MB, self: 200 * MB, procs: 3, mcp_mem: 50 * MB, mcp_count: 1,
   }]);
@@ -106,31 +135,31 @@ test('/sessions lists the sessions and the MCP servers outside them', () => {
 
   const f = fakes();
   f.config.values.lang = 'ja';
-  assert.equal(ask(createHandler(f), '/sessions').json.lang, 'ja');
+  assert.equal((await ask(createHandler(f), '/sessions')).json.lang, 'ja');
 });
 
-test('/context gives every part with what it is', () => {
-  const r = ask(createHandler(fakes()), '/context/' + SID);
+test('/context gives every part with what it is', async () => {
+  const r = await ask(createHandler(fakes()), '/context/' + SID);
   assert.deepEqual(r.json.parts.map(p => [p.id, p.kind, p.name]), [
     ['base', 'base', 'base'], ['files', 'files', 'files'], ['mcp:chrome', 'mcp', 'chrome'],
   ]);
-  assert.equal(ask(createHandler(fakes()), '/context/aaaaaaaa-0000-0000-0000-000000000000').json, null);
+  assert.equal((await ask(createHandler(fakes()), '/context/aaaaaaaa-0000-0000-0000-000000000000')).json, null);
 });
 
-test('only our own Host is answered; other paths are a 404', () => {
+test('only our own Host is answered; other paths are a 404', async () => {
   const h = createHandler(fakes());
-  assert.equal(ask(h, '/sessions', '127.0.0.1:19823').status, 200);
-  assert.equal(ask(h, '/sessions', 'LOCALHOST:19823').status, 200);
-  assert.equal(ask(h, '/sessions', null).status, 200);
-  assert.equal(ask(h, '/sessions', 'evil.example:19823').status, 403);
-  assert.equal(ask(h, '/sessions', '127.0.0.1').status, 403);
-  assert.equal(ask(h, '/session/not-hex!').status, 404);
-  assert.equal(ask(h, '/nope').status, 404);
+  assert.equal((await ask(h, '/sessions', '127.0.0.1:19823')).status, 200);
+  assert.equal((await ask(h, '/sessions', 'LOCALHOST:19823')).status, 200);
+  assert.equal((await ask(h, '/sessions', null)).status, 200);
+  assert.equal((await ask(h, '/sessions', 'evil.example:19823')).status, 403);
+  assert.equal((await ask(h, '/sessions', '127.0.0.1')).status, 403);
+  assert.equal((await ask(h, '/session/not-hex!')).status, 404);
+  assert.equal((await ask(h, '/nope')).status, 404);
 });
 
-test('a request that throws is a 500, not the end of the monitor', () => {
+test('a request that throws is a 500, not the end of the monitor', async () => {
   const broken = fakes();
   broken.transcripts.read = () => { throw new Error('disk'); };
-  const r = ask(createHandler(broken), '/context/' + SID);
+  const r = await ask(createHandler(broken), '/context/' + SID);
   assert.equal(r.status, 500);
 });

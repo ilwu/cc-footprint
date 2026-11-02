@@ -11,6 +11,10 @@ const path = require('path');
 // A session the files do not name yet (it has just started, or its id
 // changed after /clear or resume) has them read again, but not on every
 // render: at most every `retryMs`.
+//
+// The files are read asynchronously: on Windows an open can be held up for
+// seconds (something on the machine checking the file), and a synchronous
+// one would stop every answer of the monitor for as long.
 function createSessions(dir, { retryMs = 5000 } = {}) {
   const self = {
     pids: new Map(),  // sessionId -> pid
@@ -18,51 +22,62 @@ function createSessions(dir, { retryMs = 5000 } = {}) {
     start: new Map(), // pid -> when its file says the session started (epoch ms)
   };
   let lastScanAt = 0;
+  let scanning = null;
 
-  self.scan = () => {
-    self.pids.clear();
-    self.info.clear();
-    self.start.clear();
-    let files;
-    try { files = fs.readdirSync(dir); } catch { return; }
-    for (const f of files) {
-      if (!/^\d+\.json$/.test(f)) continue;
+  async function readAll() {
+    let files = [];
+    try { files = await fs.promises.readdir(dir); } catch {}
+    const names = files.filter(f => /^\d+\.json$/.test(f));
+    const bodies = await Promise.all(names.map(f => fs.promises.readFile(path.join(dir, f), 'utf8').catch(() => null)));
+
+    const pids = new Map(), info = new Map(), start = new Map();
+    for (const body of bodies) {
       try {
-        const s = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        const s = JSON.parse(body);
         if (!s.sessionId || !s.pid) continue;
         const startedAt = typeof s.startedAt === 'number' ? s.startedAt : undefined;
-        if (startedAt !== undefined) self.start.set(s.pid, startedAt);
+        if (startedAt !== undefined) start.set(s.pid, startedAt);
         // A session that was killed leaves its file behind. Should the same
         // id be in two files, the later start is the process that is running.
-        const known = self.pids.get(s.sessionId);
-        if (known !== undefined && (self.start.get(known) || 0) > (startedAt || 0)) continue;
-        self.pids.set(s.sessionId, s.pid);
-        self.info.set(s.sessionId, { cwd: s.cwd || '', name: s.name || '' });
+        const known = pids.get(s.sessionId);
+        if (known !== undefined && (start.get(known) || 0) > (startedAt || 0)) continue;
+        pids.set(s.sessionId, s.pid);
+        info.set(s.sessionId, { cwd: s.cwd || '', name: s.name || '' });
       } catch {}
     }
+    // Swapped in whole, so that an answer given while the files are being read sees the
+    // last full scan rather than a half-filled one
+    self.pids = pids;
+    self.info = info;
+    self.start = start;
+  }
+
+  // One scan at a time: while an open is held up, those that ask meanwhile
+  // wait for the scan under way rather than start more
+  self.scan = () => {
+    if (!scanning) scanning = readAll().finally(() => { scanning = null; });
+    return scanning;
   };
 
   // Whether the session is reachable by Remote Control now: its file holds
   // a bridgeSessionId while it is on and null once it is turned off. Read
   // afresh on every call, so that the statusline follows a switch at its
   // next render; null when the file cannot be read.
-  self.remoteControl = pid => {
+  self.remoteControl = async pid => {
     try {
-      const s = JSON.parse(fs.readFileSync(path.join(dir, `${pid}.json`), 'utf8'));
+      const s = JSON.parse(await fs.promises.readFile(path.join(dir, `${pid}.json`), 'utf8'));
       return !!s.bridgeSessionId;
     } catch {
       return null;
     }
   };
 
-  self.pidFor = (sid, now = Date.now()) => {
-    let pid = self.pids.get(sid);
-    if (pid === undefined && now - lastScanAt >= retryMs) {
+  self.pidFor = async (sid, now = Date.now()) => {
+    if (!self.pids.has(sid) && now - lastScanAt >= retryMs) {
       lastScanAt = now;
-      self.scan();
-      pid = self.pids.get(sid);
+      await self.scan();
     }
-    return pid;
+    return self.pids.get(sid);
   };
 
   return self;
