@@ -10,7 +10,8 @@
 //
 // The script's path is given with forward slashes. Prints one word for the
 // installer to act on:
-//   set    same | added | replaced:<previous command>
+//   set    same | refreshed | added | replaced:<previous command>
+//          (refreshed: ours already, given the refreshInterval it lacked)
 //          (before a replace the file is copied to <settings.json>.bak,
 //          unless a .bak is there already: the first one holds the setting
 //          from before this tool, and a later install must not lose it)
@@ -48,14 +49,27 @@ const previous = settings.statusLine && settings.statusLine.command;
 // it is what this script wrote before it quoted
 const ours = previous === command || previous === bare;
 
+// Claude Code reruns the script on events only, and they stop while a
+// session is idle; the monitor's figures (memory, Remote Control) change
+// without them, and a render that missed the monitor would stay as it was.
+// A value the person has set is theirs.
+const REFRESH = 30;
+
 if (action === 'set') {
-  if (previous === command) {
+  const has = Boolean(settings.statusLine) && typeof settings.statusLine.refreshInterval === 'number';
+  if (previous === command && has) {
     console.log('same');
-  } else {
-    if (previous && !ours && !fs.existsSync(file + '.bak')) fs.copyFileSync(file, file + '.bak');
-    settings.statusLine = { type: 'command', command };
+  } else if (ours) {
+    // The rest of ours is kept: the person may have added to it (padding)
+    const refreshInterval = has ? settings.statusLine.refreshInterval : REFRESH;
+    settings.statusLine = { ...settings.statusLine, type: 'command', command, refreshInterval };
     save();
-    console.log(previous && !ours ? 'replaced:' + previous : 'added');
+    console.log(previous === command ? 'refreshed' : 'added');
+  } else {
+    if (previous && !fs.existsSync(file + '.bak')) fs.copyFileSync(file, file + '.bak');
+    settings.statusLine = { type: 'command', command, refreshInterval: REFRESH };
+    save();
+    console.log(previous ? 'replaced:' + previous : 'added');
   }
 } else if (ours) {
   delete settings.statusLine;

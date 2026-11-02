@@ -44,17 +44,21 @@ proj="${proj%/}"
 # Response body -> RESP (runs in the main shell, no subshell). Fails when
 # nothing answers: no connection, or one that takes the request and says
 # nothing (another program on the port, a monitor that is stuck); the
-# caller then backs off as it would from a refused connection.
+# caller then backs off as it would from a refused connection. WHY says
+# which way it failed: refused, no-header (nothing within a second) or
+# no-body.
 http_get() {
-  local line body=""
-  RESP=""
-  { exec 3<>/dev/tcp/127.0.0.1/19823; } 2>/dev/null || return 1
+  local line body="" header=""
+  RESP="" WHY=""
+  { exec 3<>/dev/tcp/127.0.0.1/19823; } 2>/dev/null || { WHY=refused; return 1; }
   printf "GET %s HTTP/1.0\r\nHost: l\r\n\r\n" "$1" >&3
   # Whole seconds: bash 3.2 takes no fraction here
-  while read -r -t 1 line; do [[ "${line//$'\r'/}" == "" ]] && break; done <&3
+  while read -r -t 1 line; do header=1; [[ "${line//$'\r'/}" == "" ]] && break; done <&3
   read -r -t 1 body <&3; exec 3<&-
   RESP="${body//$'\r'/}"
-  [[ -n "$RESP" ]]
+  [[ -n "$RESP" ]] && return 0
+  if [[ -n "$header" ]]; then WHY=no-body; else WHY=no-header; fi
+  return 1
 }
 
 # Now in epoch seconds, without a fork: EPOCHSECONDS on bash 5, printf's
@@ -89,6 +93,10 @@ if [[ -n "$sid" && -n "$ask" ]]; then
     [[ -n "$was_down" ]] && : > "$monitor_down"
   elif [[ -n "$NOW" ]]; then
     echo "$NOW" > "$monitor_down"
+    # The first failure after the monitor answered, and how it failed, to
+    # find out afterwards why a statusline came out short; the retries of
+    # an outage that goes on are not logged, so the file stays small
+    [[ -z "$was_down" ]] && echo "$NOW $WHY $sid" >> /tmp/claude-sl-monitor.log
   fi
 fi
 

@@ -95,6 +95,7 @@ result="$(node "$dir/scripts/statusline-setting.js" set "$settings" "$statusline
   || die "could not update $settings (invalid JSON?) - left untouched"
 case "$result" in
   same)       ok "settings.json already points at statusline.sh" ;;
+  refreshed)  ok "statusLine now also reruns every 30 s (refreshInterval)" ;;
   replaced:*) warn "replaced your statusLine '${result#replaced:}'"
               printf '           previous settings saved to settings.json.bak\n' ;;
   *)          ok "Added statusLine to settings.json" ;;

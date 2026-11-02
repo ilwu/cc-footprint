@@ -145,6 +145,8 @@ settings="$(cat "$HOME/.claude/settings.json")"
 [[ "$settings" == *'"theme": "dark"'* ]] || fail "settings.json lost the person's other settings"
 sl_command="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).statusLine.command' "$HOME/.claude/settings.json")"
 [[ "$sl_command" == bash*"$home_cmd/.claude/statusline.sh"* ]] || fail "statusLine does not point at our script: $sl_command"
+refresh="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).statusLine.refreshInterval' "$HOME/.claude/settings.json")"
+[[ "$refresh" == 30 ]] || fail "statusLine has no refreshInterval of 30: $refresh"
 grep -q 'my-own.sh' "$HOME/.claude/settings.json.bak" || fail "the previous statusLine was not backed up"
 # Set to something else since and installed again: the first backup stays
 node -e '
@@ -281,7 +283,8 @@ line="$(printf '{"session_id":"%s","context_window":{"used_percentage":31}}' "$s
 [[ "$line" == *"Ctx "*"31%"*"$sid"* ]] || fail "without the monitor the statusline lost Claude Code's own items: $line"
 [[ "$line" != *"Sys "* && "$line" != *"Claude "* ]] || fail "memory items are shown while the monitor is down: $line"
 [[ -s /tmp/claude-sl-monitor.down ]] || fail "the failed connection was not noted"
-rm -f /tmp/claude-sl-monitor.down
-pass "without the monitor the statusline shows Claude Code's own items only, and backs off"
+grep -q " refused $sid\$" /tmp/claude-sl-monitor.log 2>/dev/null || fail "the first failure was not logged with how it failed"
+rm -f /tmp/claude-sl-monitor.down /tmp/claude-sl-monitor.log
+pass "without the monitor the statusline shows Claude Code's own items only, backs off, and logs why"
 
 printf '\nAll checks passed.\n'

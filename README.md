@@ -97,7 +97,7 @@ Open a Claude Code session and the statusline is there. The installer:
 
 1. Installs the npm dependency that draws the icon (Windows and macOS; Linux has no icon and needs none)
 2. Copies the statusline script to `~/.claude/`
-3. Points `statusLine` in `settings.json` at it — one of your own is backed up as `*.bak` first; the rest of `settings.json` and its key order are left as they are
+3. Points `statusLine` in `settings.json` at it, rerun every 30 seconds (`refreshInterval`) so that an idle session's figures stay current — one of your own is backed up as `*.bak` first; the rest of `settings.json` and its key order are left as they are
 4. Makes the background program start when you log in: a startup shortcut on Windows, a systemd user service on Linux, a launchd agent on macOS
 5. Starts it
 6. Installs the plugin from this clone. Claude Code loads it from the clone itself, so after a `git pull` the open sessions pick up the new one on `/reload-plugins` or a restart. Skip it with `.\install.ps1 -NoPlugin` or `./install.sh --no-plugin`
@@ -242,7 +242,7 @@ The background program listens on `127.0.0.1:19823`. To change the port, edit `P
 
 ### Troubleshooting
 
-**`Sys`, `Claude` and the other measured items are missing from the statusline** — the background program is not running, or cannot be reached, and the statusline shows only what Claude Code itself reports. The simplest fix is to re-run the installer, which on all three platforms stops the old one and starts it again; or by hand (the items are back within 30 seconds, which is how often the statusline asks again):
+**`Sys`, `Claude` and the other measured items are missing from the statusline** — the background program is not running, or cannot be reached, and the statusline shows only what Claude Code itself reports. Each time it first fails to get an answer, the statusline adds a line to `claude-sl-monitor.log` in `/tmp` (`%TEMP%` on Windows): when, how (`refused`: nothing listening; `no-header`: no answer within a second; `no-body`: an empty one), and for which session. The simplest fix is to re-run the installer, which on all three platforms stops the old one and starts it again; or by hand (the items are back within 30 seconds, which is how often the statusline asks again):
 
 - Windows — there should be an orange footprint icon at the bottom right (it may be tucked into the `^` overflow area of the taskbar). None: double-click `monitor/start.vbs`. There but the items are still missing: choose Exit in the icon's menu, then double-click.
 - Linux — `systemctl --user restart cc-footprint`; `systemctl --user status cc-footprint` shows its state. Where there is no systemd user session, the installer prints the command to start it yourself: `nohup node <clone>/monitor/app.js >/dev/null 2>&1 &`.

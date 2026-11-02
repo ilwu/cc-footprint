@@ -97,7 +97,7 @@ cd cc-footprint
 
 1. 安裝畫圖示用的 npm 依賴（Windows 與 macOS；Linux 沒有圖示，不需要）
 2. 複製 statusline 腳本到 `~/.claude/`
-3. 把 `settings.json` 的 `statusLine` 指向它 — 原本有自己的會先備份成 `*.bak`；`settings.json` 其他內容和 key 的順序不動
+3. 把 `settings.json` 的 `statusLine` 指向它，並設定每 30 秒重跑一次（`refreshInterval`），閒置的 session 數字也會更新 — 原本有自己的會先備份成 `*.bak`；`settings.json` 其他內容和 key 的順序不動
 4. 設定登入時自動啟動背景程式：Windows 是啟動捷徑，Linux 是 systemd 使用者服務，macOS 是 launchd agent
 5. 啟動背景程式
 6. 從這份 clone 安裝 plugin。Claude Code 直接從 clone 載入它，所以 `git pull` 之後，已開著的 session 用 `/reload-plugins` 或重開就是新版。不要的話 `.\install.ps1 -NoPlugin` 或 `./install.sh --no-plugin`
@@ -239,7 +239,7 @@ Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對�
 
 ### 疑難排解
 
-**狀態列少了 `Sys`、`Claude` 這些量測項目** — 背景程式沒在跑，或連不上，狀態列只顯示 Claude Code 自己提供的項目。最簡單的是重跑安裝程式，三個平台都會先停掉舊的再啟動；或者手動（項目最多 30 秒就會回來，狀態列每隔這麼久才再問一次）：
+**狀態列少了 `Sys`、`Claude` 這些量測項目** — 背景程式沒在跑，或連不上，狀態列只顯示 Claude Code 自己提供的項目。每次一連不上，狀態列會在 `/tmp`（Windows 是 `%TEMP%`）的 `claude-sl-monitor.log` 記一行：什麼時候、怎麼失敗的（`refused`：沒有程式在聽；`no-header`：一秒內沒回應；`no-body`：回應是空的）、哪個 session。最簡單的是重跑安裝程式，三個平台都會先停掉舊的再啟動；或者手動（項目最多 30 秒就會回來，狀態列每隔這麼久才再問一次）：
 
 - Windows — 右下角應該有橘色腳印圖示（可能縮在工作列 `^` 的溢位區域）。沒有就雙擊 `monitor/start.vbs`；有但項目還是沒回來，先在圖示選單按 Exit 再雙擊。
 - Linux — `systemctl --user restart cc-footprint`；看狀態用 `systemctl --user status cc-footprint`。沒有 systemd 使用者 session 的環境，安裝程式會印出手動啟動的指令：`nohup node <clone>/monitor/app.js >/dev/null 2>&1 &`。

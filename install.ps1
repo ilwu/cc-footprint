@@ -148,6 +148,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 if ($result -eq "same") {
     Write-Host "  settings.json already points at statusline.sh" -ForegroundColor Green
+} elseif ($result -eq "refreshed") {
+    Write-Host "  statusLine now also reruns every 30 s (refreshInterval)" -ForegroundColor Green
 } elseif ($result -like "replaced:*") {
     Write-Host "  WARNING: replaced your statusLine '$($result.Substring(9))'" -ForegroundColor Yellow
     Write-Host "           previous settings saved to settings.json.bak" -ForegroundColor Yellow
