@@ -36,7 +36,7 @@
 每一次請求都會把整段 context 重讀一遍。越滿，每一輪越貴、額度燒得越快，也越早被自動壓縮、開始遺失前面的細節。cc-footprint 讓你在它咬人之前就看到：
 
 - **多滿** — `Ctx ▊▊▊▊▊▊▊░░░ 72%`。
-- **這一步加了多少** — `↑15k`：這一輪到目前為止塞進 context 的 token，一輪吃掉視窗 5% 以上會變黃。讀完一個檔案、跑完一個指令突然跳一大段，當下就知道是哪一步。
+- **這一步加了多少** — `↑15k`：這一輪到目前為止塞進 context 的 token，一輪吃掉視窗 5% 或 2.5 萬 token（取小的）以上會變黃。讀完一個檔案、跑完一個指令突然跳一大段，當下就知道是哪一步。
 - **是什麼在塞** — `(files 29%)`：最大的來源和它的佔比。來源分成 Claude 的輸出、思考、讀檔、指令輸出、搜尋、網頁、子代理、其他工具的結果、你的提示、壓縮摘要，以及每一個 MCP server。
 - **MCP 佔多少** — 條後面的 `mcp 18%`，條裡也有這麼多格是 MCP 的顏色：視窗裡被 MCP 工具結果佔掉的比例，所有 server 加在一起。瀏覽器操作特別容易把這個數字推高，一頁一頁往上疊。
 - **代價** — `5h 34% 2h13m`、`Week 52% 4d21h`：兩個額度用了多少、距離重置多久；也可以顯示 session 累計花費。
@@ -170,7 +170,7 @@ git pull
 |------|------|----------|------|
 | **Context 與用量** | | | |
 | Context Window | Context 使用率 % + 進度條 | 快滿時會自動壓縮、前面的細節可能遺失；大改動前先 `/compact` 或開新 session。Context 越長，每次請求也越貴 | 開 |
-| Context: Growth This Turn | 接在 `Ctx` 後面的 `↑15k` — 這一輪到目前為止加進 context 的 token（反而變小時是 `↓`；壓縮後重新算起）；單一輪吃掉視窗 5% 以上會變黃 | 當下就看出哪一步很貴，不用等到 90% 才發現 | 開 |
+| Context: Growth This Turn | 接在 `Ctx` 後面的 `↑15k` — 這一輪到目前為止加進 context 的 token（反而變小時是 `↓`；壓縮後重新算起）；單一輪吃掉視窗 5% 或 2.5 萬 token（取小的）以上會變黃 | 當下就看出哪一步很貴，不用等到 90% 才發現 | 開 |
 | Context: Top Source | 接在 `Ctx` 後面的 `(files 29%)` — 最大的來源和佔比：`output`（Claude 的回覆和工具呼叫）、`think`、`files`、`shell`、`search`、`web`、`agents`、`tools`（其他工具的結果：編輯、寫檔、待辦清單）、`prompts`、`summary`（壓縮之後），或某個 MCP server 的名字 | 知道該改什麼，見[然後怎麼降下來](#然後怎麼降下來) | 關 |
 | Context: MCP Share | 接在 `Ctx` 後面的 `mcp 18%`，條裡也有這麼多格是 MCP 的顏色 — 視窗裡被 MCP 工具結果佔掉的比例，所有 server 加在一起；還沒用過 MCP 工具時不顯示 | Ctx 漲得很快時，提醒你可能是花太多在瀏覽器操作上。比例高就把瀏覽器工作交給子代理，套用後也用它確認有沒有降 | 開 |
 | 5h Usage | 5 小時用量上限 %（訂閱方案；Claude Code 沒提供時自動隱藏，例如 2026 年 10 月起已取消 5 小時限制的 Ultra 方案） | 快撞到上限前，先把重要的工作做完，暫停不急的 session | 開 |
@@ -230,7 +230,7 @@ Claude Code 不會把行程 ID 傳給狀態列，所以 session→行程的對�
 
 `lang` 是工具列選單和 `/footprint` 面板的語言：`auto` 跟著系統，或指定 `en`、`de`、`es`、`fr`、`ja`、`ko`、`pt-BR`、`zh-CN`、`zh-TW`；系統語言沒有對應的就用英文。macOS 登入時自動啟動的背景程式拿不到系統語言，`auto` 會是英文，請在選單自己選。工具列選單的 **Language** 可以切換（這一項在每種語言都叫 Language，選錯了也找得回來）。狀態列的縮寫（`Ctx`、`5h`、`Sys`…）在每種語言都一樣。英文和繁中以外的用字是初稿，歡迎指正。
 
-背景程式監聽 `127.0.0.1:19823`。要改連接埠，編輯 `monitor/app.js` 裡的 `PORT`，以及 `statusline/statusline.sh` 和 `plugin/hooks/register.tsx` 裡對應的埠號。
+背景程式監聽 `127.0.0.1:19823`。要改連接埠，把 clone 裡所有的 `19823` 都改掉：`monitor/app.js` 的 `PORT`、`statusline/statusline.sh`、`plugin/hooks/register.tsx`、兩支安裝程式、`uninstall.ps1` 和 `scripts/common.ps1`；改完重跑安裝程式。
 
 ### 限制
 

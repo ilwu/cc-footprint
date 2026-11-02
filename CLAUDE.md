@@ -22,11 +22,11 @@ monitor/ (Node.js)                    statusline/statusline.sh (Bash)
 └─ Config: ~/.cc-footprint/           └─ Monitor down: only what Claude Code itself reports
 ```
 
-Each module but `app.js` is a factory taking its paths and the state it needs, so that a test can point it at a temporary directory. HTTP API (`api.js`), and who reads it: `/session/:sid` the statusline; `/context/:sid` and `/sessions` the plugin (`/sessions` also `install.ps1`, to report what it found); `/status`, `/status/:pid` and `/config` nobody here, for looking at by hand. Requests must carry our own Host header (DNS rebinding).
+The modules that read files or hold state (`config`, `sessions`, `transcripts`, `plugin-state`, `api`, `tray`, `i18n`) are factories taking their paths and the state they need, so that a test can point them at a temporary directory; `proctree`, `context` and the collectors' parsers are plain functions. HTTP API (`api.js`), and who reads it: `/session/:sid` the statusline; `/context/:sid` and `/sessions` the plugin (`/sessions` also `install.ps1`, to report what it found); `/status`, `/status/:pid` and `/config` nobody here, for looking at by hand. Requests must carry our own Host header (DNS rebinding).
 
 ## What Claude Code gives us
 
-None of these formats is documented; `test/fixtures/` holds a capture of each, with how it was taken (its README). When a release changes one, capture again and rerun the tests.
+None of these formats is documented; `test/fixtures/` holds a capture of the statusline stdin and of a transcript, with how each was taken (its README); the session files and settings.json have none. When a release changes one, capture again and rerun the tests.
 
 - **Statusline stdin** — read with bash regexes at the top of `statusline.sh`. Keys that occur more than once (`used_percentage` is in `context_window` and in each rate limit) must be looked for inside their own object.
 - **Session files** `~/.claude/sessions/<pid>.json` — `pid`, `sessionId`, `cwd`, `name`, `startedAt` (epoch ms, a few seconds after the process began; a process much younger than it is a reused pid), `bridgeSessionId` (set while Remote Control is on, `null` once it is turned off; read afresh at each `/session`). A killed session leaves its file behind.
@@ -110,7 +110,7 @@ bash statusline/statusline.sh < test/fixtures/statusline-input.json
 # paths); the monitor is out of reach there, so this shows the fallback
 docker run --rm -i -v "<repo>:/repo:ro" bash:3.2 bash /repo/statusline/statusline.sh < test/fixtures/statusline-input.json
 
-# Unit tests: every monitor module but app.js and tray.js, the /session keys
+# Unit tests: the monitor modules (not app.js, tray.js, plugin-state.js), the /session keys
 # the statusline reads (api.test.js), and the item list kept the same in its
 # five places (consistency.test.js)
 cd monitor && node --test
@@ -155,6 +155,6 @@ Kept here so that nobody takes these as tested:
 - `context.js`'s category names are a contract: `notices.ts` groups them into the pane's colours and takes any name it does not know for an MCP server; the README lists them. Change all three together.
 - The pane's data is read at the end of every turn, on `/footprint`, and on Refresh; while the pane is open also every 30 s (`$.clock.every`, cancelled on `ui.close`).
 - The API is early access and changes between Claude Code versions; the types in the current version's `claude-code.d.ts` are authoritative (loading the plugin-authoring skill writes it out and names its path). Type-check with the tsconfig its header gives, kept outside the repo, its `include` naming that file, `plugin/hooks` and `plugin/types`.
-- Develop with hot reload under `~/.claude/dev-mods/<session>/cc-footprint/`, then copy back to `plugin/`.
+- Develop by editing `plugin/` and running `/reload-plugins` when the plugin is installed from this clone (it loads in place, below); a hot-reload copy under `~/.claude/dev-mods/` is only for a machine without that install, as both would load.
 - Install: `install.ps1` / `install.sh` register this clone as a marketplace and install the plugin from it (`-NoPlugin` / `--no-plugin` skip that); the uninstallers remove the plugin and the marketplace registration. A marketplace added from a local path **loads the plugin in place** (checked on 2.1.292: the hooks are read from the clone's `plugin/`, and `claude plugin install` says so), so a change to `plugin/` reaches the sessions on `/reload-plugins` or a restart, with no version bump; `claude plugin update` only re-records the version. Claude Code still writes a copy under `~/.claude/plugins/cache/cc-footprint/`, which the uninstallers remove. A marketplace added from GitHub is pinned by `version` (below).
 - Publishing: `.claude-plugin/marketplace.json` at the repo root makes the repo its own marketplace (`/plugin marketplace add ilwu/cc-footprint`), so a push to `main` is a release. Bump `version` in both `plugin/.claude-plugin/plugin.json` and the marketplace file together whenever `plugin/` changes; `claude plugin validate . --strict` checks the marketplace, `claude plugin validate plugin --strict` the plugin.

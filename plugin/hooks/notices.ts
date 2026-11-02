@@ -2,8 +2,18 @@ import type { Part, View } from '../types'
 import { strings } from './strings'
 import type { Strings } from './strings'
 
-/** A turn that adds this share of the window is worth a toast. */
+/** A turn that adds this share of the window is worth a toast... */
 export const BIG_TURN = 0.05
+/**
+ * ...or this many tokens, whichever is less: on a large window 5% is a lot
+ * of tokens, and every later request re-reads them however large it is.
+ */
+export const BIG_TURN_TOKENS = 25_000
+
+/** How many tokens one turn must add to be worth a toast. */
+export function bigTurn(window: number): number {
+  return Math.min(BIG_TURN * window, BIG_TURN_TOKENS)
+}
 /** Warn once the context is this far along to the auto-compact point... */
 export const NEAR_COMPACT = 0.85
 /** ...and arm the warning again once it has fallen back below this. */
@@ -135,7 +145,7 @@ export function describe(part: Part, s: Strings = strings('en')): string {
 export function turnNotice(base: TurnBase | null, now: View): string | null {
   const before = base?.tokens ?? null
   const grown = now.turn ?? (before !== null && now.tokens !== null ? now.tokens - before : null)
-  if (grown === null || now.window <= 0 || grown < BIG_TURN * now.window) return null
+  if (grown === null || now.window <= 0 || grown < bigTurn(now.window)) return null
   const s = strings(now.lang)
 
   let top: Part | null = null

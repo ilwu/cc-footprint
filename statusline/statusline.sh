@@ -280,10 +280,13 @@ if has ctx; then
   ctx_c="Ctx ${BAR} ${ctx:-?}%"; ctx_p="Ctx ########## ${ctx:-?}%"
   # What this turn has added to the context so far (↓ when it has shrunk
   # instead; a compaction starts the count again); yellow once one turn
-  # takes 5% of the window
+  # takes 5% of the window or 25k tokens, whichever is less (the plugin's
+  # toast uses the same mark): on a 1M window 5% is 50k, and every later
+  # request re-reads what a turn added however large the window is
   if has ctx_grow && [[ -n "$ctx_turn" && "$ctx_turn" != "0" ]]; then
     if ((ctx_turn > 0)); then tok "$ctx_turn"; grow="↑$TOK"; else tok "$((-ctx_turn))"; grow="↓$TOK"; fi
-    if ((${ctx_win:-0} > 0 && ctx_turn * 20 >= ctx_win)); then gc=$YLW; else gc=$DIM; fi
+    big=$(( ${ctx_win:-0} / 20 )); ((big > 25000)) && big=25000
+    if ((big > 0 && ctx_turn >= big)); then gc=$YLW; else gc=$DIM; fi
     ctx_c+=" ${gc}${grow}${R}"; ctx_p+=" ^${TOK}"
   fi
   if [[ -n "$mcp_win" ]]; then

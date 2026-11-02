@@ -36,7 +36,7 @@ Every Claude Code session has a footprint: the **context** it carries and the **
 Every request re-reads the whole context. The fuller it is, the more each turn costs, the faster the limits burn, and the sooner auto-compaction kicks in and earlier details are lost. cc-footprint shows it before it bites:
 
 - **How full** — `Ctx ▊▊▊▊▊▊▊░░░ 72%`.
-- **What this step added** — `↑15k`: the tokens this turn has put into the context so far; yellow when one turn takes 5% of the window or more. A file read or a command that suddenly adds a big chunk is caught the moment it happens.
+- **What this step added** — `↑15k`: the tokens this turn has put into the context so far; yellow when one turn takes 5% of the window or 25k tokens, whichever is less. A file read or a command that suddenly adds a big chunk is caught the moment it happens.
 - **What fills it** — `(files 29%)`: the largest source and its share. Sources are Claude's output, thinking, file reads, command output, searches, web pages, subagents, other tools' results, your prompts, the compaction summary, and each MCP server by name.
 - **What MCP takes** — `mcp 18%` after the bar, and that much of the bar in the MCP colour: the share of the window that MCP tool results hold, every server together. Browser work pushes this up quickly, a page at a time.
 - **The price** — `5h 34% 2h13m`, `Week 52% 4d21h`: how much of each limit is used and how long until it resets; the session's running cost can be shown too.
@@ -170,7 +170,7 @@ Watch the `mcp` share of `Ctx` for the effect. To change the subagent's model, e
 |------|-------|---------------|---------|
 | **Context and usage** | | | |
 | Context Window | Context usage % with a bar | Near full, auto-compaction kicks in and earlier details may be lost; `/compact` or a new session before a large change. A longer context also makes every request cost more | On |
-| Context: Growth This Turn | `↑15k` after `Ctx` — the tokens this turn has added to the context so far (`↓` when it has shrunk instead; a compaction starts the count again); yellow when one turn takes 5% of the window or more | See which step was expensive as it happens, not at 90% | On |
+| Context: Growth This Turn | `↑15k` after `Ctx` — the tokens this turn has added to the context so far (`↓` when it has shrunk instead; a compaction starts the count again); yellow when one turn takes 5% of the window or 25k tokens, whichever is less | See which step was expensive as it happens, not at 90% | On |
 | Context: Top Source | `(files 29%)` after `Ctx` — the largest source and its share: `output` (Claude's replies and tool calls), `think`, `files`, `shell`, `search`, `web`, `agents`, `tools` (the other tools' results: edits, writes, to-do lists), `prompts`, `summary` (after a compaction), or an MCP server's name | Know what to change; see [Then shrink it](#then-shrink-it) | Off |
 | Context: MCP Share | `mcp 18%` after `Ctx`, and that much of its bar in the MCP colour — the share of the window that MCP tool results hold, every server together; nothing until an MCP tool is used | When `Ctx` grows fast, a reminder that browser work may be the cause. High: hand browser work to a subagent, and watch it again after | On |
 | 5h Usage | 5-hour limit % (subscription plans; hidden when Claude Code does not report it, as on Ultra, which has no 5-hour limit since October 2026) | Finish what matters before the limit, pause the sessions that can wait | On |
@@ -233,7 +233,7 @@ The tray or menu bar menu writes `~/.cc-footprint/config.json`; on Linux you edi
 
 `lang` is the language of the tray menu and the `/footprint` pane: `auto` follows the system's, or one of `en`, `de`, `es`, `fr`, `ja`, `ko`, `pt-BR`, `zh-CN`, `zh-TW`; a system language with no table of its own gets English. On macOS the background program started at login is not told the system's language, so `auto` is English there: choose yours in the menu. The tray's **Language** menu sets it (the menu is called Language in every language, so a wrong choice can be undone). The statusline's short labels (`Ctx`, `5h`, `Sys`, ...) are the same in every language. The wording in languages other than English and Traditional Chinese is a first draft — corrections are welcome.
 
-The background program listens on `127.0.0.1:19823`. To change the port, edit `PORT` in `monitor/app.js` and the matching port in `statusline/statusline.sh` and `plugin/hooks/register.tsx`.
+The background program listens on `127.0.0.1:19823`. To change the port, change every `19823` in the clone: `PORT` in `monitor/app.js`, `statusline/statusline.sh`, `plugin/hooks/register.tsx`, both installers, `uninstall.ps1` and `scripts/common.ps1`; then re-run the installer.
 
 ### Limits
 

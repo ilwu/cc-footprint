@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import type { View } from '../types'
-import { allot, compactNotice, groupParts, summaryLine, timeLeft, tokens, turnNotice } from './notices'
+import { allot, bigTurn, compactNotice, groupParts, summaryLine, timeLeft, tokens, turnNotice } from './notices'
 import { LANGS, padTo, strings, width } from './strings'
 
 const VIEW: View = {
@@ -65,6 +65,14 @@ test('a turn that adds 5% of the window is announced with what grew most', () =>
   }
   const said = turnNotice(base, { ...VIEW, turn: 30_000 })
   expect(said).toBe('Context +30k this turn (15% of the window), mostly file reads')
+})
+
+test('on a large window 25k tokens are enough, however small a share they are', () => {
+  const large = { ...VIEW, window: 1_000_000, tokens: 400_000 }
+  expect(bigTurn(200_000)).toBe(10_000)
+  expect(bigTurn(1_000_000)).toBe(25_000)
+  expect(turnNotice({ tokens: 370_000, parts: [] }, { ...large, turn: 30_000 })).toBe('Context +30k this turn (3% of the window)')
+  expect(turnNotice({ tokens: 380_000, parts: [] }, { ...large, turn: 20_000 })).toBe(null)
 })
 
 test('with no parts from the start of the turn, nothing is blamed', () => {
